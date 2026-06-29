@@ -121,7 +121,7 @@ def main():
         result = run_single(args.model, args.strategy, args.fraction, args.push_to_hub)
         print(
             f"\nResult: accuracy={result['test_accuracy']:.4f}, "
-            f"latency={result['latency_cpu']['mean_ms']:.1f}ms"
+            f"latency={result['latency_cpu_mean_ms']:.1f}ms"
         )
     else:
         results = run_all_experiments(args.study, args.push_to_hub)
