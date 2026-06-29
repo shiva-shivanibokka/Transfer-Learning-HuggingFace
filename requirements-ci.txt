@@ -1,0 +1,11 @@
+# Lightweight stack for CI: enough to import the pure-logic modules and run the
+# math/contract tests, WITHOUT the heavy/networked deps (transformers, gradio,
+# datasets, torchvision) — tests that need those skip themselves via importorskip.
+--extra-index-url https://download.pytorch.org/whl/cpu
+pytest>=8.0,<9.0
+ruff>=0.6,<1.0
+numpy>=1.26.0,<2.0.0
+scipy>=1.13.0,<2.0.0
+scikit-learn>=1.4.0,<2.0.0
+matplotlib>=3.8.0,<4.0.0
+torch>=2.2.0,<3.0.0

@@ -1,3 +1,5 @@
+import pytest
+
 from configs.text_config import TEXT_MODELS
 from configs.vision_config import VISION_MODELS
 from src.utils import paths
@@ -18,6 +20,8 @@ def test_text_paths():
 def test_app_vision_model_keys_are_real_registry_keys():
     # The app maps display names -> registry keys. Every mapped key must exist
     # in the config registry, or build_model() will KeyError. (Bug A2 guard.)
+    # Importing the app needs gradio/torch; skip cleanly where absent (CI).
+    pytest.importorskip("gradio")
     from app.gradio_app import VISION_MODEL_IDS
 
     for display, key in VISION_MODEL_IDS.items():
@@ -25,6 +29,7 @@ def test_app_vision_model_keys_are_real_registry_keys():
 
 
 def test_app_text_model_keys_are_real_registry_keys():
+    pytest.importorskip("gradio")
     from app.gradio_app import TEXT_MODEL_IDS
 
     for display, key in TEXT_MODEL_IDS.items():
