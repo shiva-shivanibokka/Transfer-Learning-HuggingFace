@@ -37,6 +37,9 @@ from configs.vision_config import (
     EUROSAT_CLASSES,
     NUM_CLASSES,
 )
+from src.utils.logging_utils import get_logger
+
+log = get_logger(__name__)
 
 
 # ── MLflow callback ───────────────────────────────────────────────────────────
@@ -122,8 +125,8 @@ def train_vision_model(
     )
 
     param_info = count_trainable_params(model)
-    print(f"\n[{cfg.model_key} | {cfg.strategy} | {cfg.data_fraction * 100:.0f}% data]")
-    print(
+    log.info(f"\n[{cfg.model_key} | {cfg.strategy} | {cfg.data_fraction * 100:.0f}% data]")
+    log.info(
         f"  Trainable: {param_info['trainable_params']:,} / {param_info['total_params']:,} "
         f"({param_info['trainable_pct']:.1f}%)"
     )
@@ -222,7 +225,7 @@ def train_vision_model(
         ckpt_path = vision_checkpoint_path(cfg.model_key, cfg.strategy, cfg.data_fraction)
         ckpt_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(model.state_dict(), ckpt_path)
-        print(f"  Saved deployable checkpoint -> {ckpt_path}")
+        log.info(f"  Saved deployable checkpoint -> {ckpt_path}")
 
         # Latency benchmark (CPU)
         latency = benchmark_latency(model, image_size=224, device="cpu")
@@ -247,7 +250,7 @@ def train_vision_model(
             )
             mlflow.log_artifact(onnx_path)
         except Exception as e:
-            print(f"  ONNX export failed: {e}")
+            log.info(f"  ONNX export failed: {e}")
             onnx_latency = {}
 
         # Save result JSON. Flat scalar keys so the summary CSV is clean

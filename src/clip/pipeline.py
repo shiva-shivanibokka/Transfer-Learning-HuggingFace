@@ -35,6 +35,9 @@ from configs.clip_config import (
     PROMPT_TEMPLATES,
     CLIPConfig,
 )
+from src.utils.logging_utils import get_logger
+
+log = get_logger(__name__)
 
 
 # ── Feature extraction ─────────────────────────────────────────────────────────
@@ -195,7 +198,7 @@ def few_shot_linear_probe(
         preds = clf.predict(X_test_norm)
         acc = (preds == test_labels).mean()
         results[k] = float(acc)
-        print(f"  Few-shot k={k:3d}: accuracy={acc:.4f}")
+        log.info(f"  Few-shot k={k:3d}: accuracy={acc:.4f}")
 
     return results
 
@@ -250,13 +253,13 @@ def run_clip_pipeline(cfg: CLIPConfig) -> dict:
     setup_mlflow(cfg.mlflow_experiment, cfg.mlflow_tracking_uri)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"\nLoading CLIP model: {cfg.model_id} on {device}")
+    log.info(f"\nLoading CLIP model: {cfg.model_id} on {device}")
 
     model = CLIPModel.from_pretrained(cfg.model_id).to(device)
     processor = CLIPProcessor.from_pretrained(cfg.model_id)
 
     # Load EuroSAT
-    print("Loading EuroSAT dataset...")
+    log.info("Loading EuroSAT dataset...")
     ds = load_dataset("blanchefort/eurosat_rgb")
 
     def get_images_and_labels(split):
@@ -271,43 +274,43 @@ def run_clip_pipeline(cfg: CLIPConfig) -> dict:
             labels.append(item["label"])
         return images, np.array(labels)
 
-    print("Extracting image features (train split for few-shot)...")
+    log.info("Extracting image features (train split for few-shot)...")
     train_images, train_labels = get_images_and_labels("train")
     train_feats = extract_image_features(
         model, processor, train_images, cfg.batch_size, device
     )
 
-    print("Extracting image features (test split)...")
+    log.info("Extracting image features (test split)...")
     test_images, test_labels = get_images_and_labels("test")
     test_feats = extract_image_features(
         model, processor, test_images, cfg.batch_size, device
     )
 
     # ── Text features for each template ────────────────────────────────────────
-    print("\nBuilding text embeddings for all prompt templates...")
+    log.info("\nBuilding text embeddings for all prompt templates...")
     text_features_per_template = []
     for template in PROMPT_TEMPLATES:
         prompts = build_prompts(template, EUROSAT_CLASSES)
         feats = extract_text_features(model, processor, prompts, device)
         text_features_per_template.append(feats)
-        print(f"  Template: '{template[:50]}...' → features shape {feats.shape}")
+        log.info(f"  Template: '{template[:50]}...' → features shape {feats.shape}")
 
     # ── Zero-shot ───────────────────────────────────────────────────────────────
-    print("\nRunning zero-shot classification...")
+    log.info("\nRunning zero-shot classification...")
     zero_shot_results = zero_shot_classify(
         test_feats, text_features_per_template, test_labels, ensemble=True
     )
     zero_shot_results["templates"] = PROMPT_TEMPLATES
 
-    print(
+    log.info(
         f"  Per-template accuracies: {[f'{a:.3f}' for a in zero_shot_results['per_template_accuracy']]}"
     )
-    print(f"  Best template:  {zero_shot_results['best_template_accuracy']:.4f}")
-    print(f"  Ensemble:       {zero_shot_results['ensemble_accuracy']:.4f}")
-    print(f"  Std across templates: {zero_shot_results['std_template_accuracy']:.4f}")
+    log.info(f"  Best template:  {zero_shot_results['best_template_accuracy']:.4f}")
+    log.info(f"  Ensemble:       {zero_shot_results['ensemble_accuracy']:.4f}")
+    log.info(f"  Std across templates: {zero_shot_results['std_template_accuracy']:.4f}")
 
     # ── Few-shot ────────────────────────────────────────────────────────────────
-    print("\nRunning few-shot linear probe...")
+    log.info("\nRunning few-shot linear probe...")
     few_shot_results = few_shot_linear_probe(
         train_feats,
         train_labels,

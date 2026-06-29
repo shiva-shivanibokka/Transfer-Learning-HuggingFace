@@ -35,6 +35,9 @@ from src.utils.metrics import (
     compute_classification_metrics,
     compute_ece,
 )
+from src.utils.logging_utils import get_logger
+
+log = get_logger(__name__)
 
 
 # ── Tokenisation ───────────────────────────────────────────────────────────────
@@ -92,9 +95,9 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
     id2label = {i: c for i, c in enumerate(EMOTION_CLASSES)}
     label2id = {c: i for i, c in enumerate(EMOTION_CLASSES)}
 
-    print(f"\n{'=' * 60}")
-    print(f"Training: {cfg.model_key} ({hf_id})")
-    print(f"{'=' * 60}")
+    log.info(f"\n{'=' * 60}")
+    log.info(f"Training: {cfg.model_key} ({hf_id})")
+    log.info(f"{'=' * 60}")
 
     tokenizer = AutoTokenizer.from_pretrained(hf_id)
     model = AutoModelForSequenceClassification.from_pretrained(
@@ -185,7 +188,7 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
             max_conf, preds, labels, cfg.calibration_bins
         )
         mlflow.log_metric("ece_before_calibration", ece_before)
-        print(f"  ECE before calibration: {ece_before:.4f}")
+        log.info(f"  ECE before calibration: {ece_before:.4f}")
 
         # Fit temperature scaler on validation set
         # Build a simple DataLoader for calibration
@@ -220,7 +223,7 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
 
         T = max(float(scaler.T), 0.05)  # guard: avoid div-by-~0 at serve time
         mlflow.log_metric("temperature", T)
-        print(f"  Optimal temperature T={T:.4f}")
+        log.info(f"  Optimal temperature T={T:.4f}")
 
         # ECE after calibration
         scaled_logits = torch.tensor(logits) / T
@@ -229,7 +232,7 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
             scaled_conf, preds, labels, cfg.calibration_bins
         )
         mlflow.log_metric("ece_after_calibration", ece_after)
-        print(f"  ECE after calibration:  {ece_after:.4f}")
+        log.info(f"  ECE after calibration:  {ece_after:.4f}")
 
         result = {
             "model_key": cfg.model_key,
@@ -258,7 +261,7 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
 
         temp_path = text_temperature_path(cfg.model_key)
         temp_path.write_text(json.dumps({"temperature": T}, indent=2))
-        print(f"  Saved checkpoint -> {ckpt_path}; temperature={T:.4f}")
+        log.info(f"  Saved checkpoint -> {ckpt_path}; temperature={T:.4f}")
 
         # Hub push
         if cfg.push_to_hub and cfg.hub_model_id:
