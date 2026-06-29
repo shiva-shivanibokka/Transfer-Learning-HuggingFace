@@ -1,0 +1,15 @@
+# Slim dependency set for the Hugging Face Space (inference only).
+# Training-only deps (mlflow, umap-learn, albumentations, opencv, notebook,
+# plotly, seaborn) are intentionally excluded to keep the Space build fast.
+torch>=2.2.0,<3.0.0
+torchvision>=0.17.0,<1.0.0
+transformers>=4.47.0,<5.0.0
+huggingface-hub>=0.22.0,<1.0.0
+Pillow>=10.3.0,<12.0.0
+numpy>=1.26.0,<2.0.0
+scipy>=1.13.0,<2.0.0
+scikit-learn>=1.4.0,<2.0.0
+matplotlib>=3.8.0,<4.0.0
+pandas>=2.2.0,<3.0.0
+tabulate>=0.9.0,<1.0.0
+gradio>=4.36.0,<7.0.0

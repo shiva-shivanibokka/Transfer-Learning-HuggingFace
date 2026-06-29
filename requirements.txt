@@ -1,48 +1,53 @@
+# Bounded ranges keep HF Spaces / fresh installs reproducible across rebuilds:
+# a floor for the features we use, an upper cap so a fresh install cannot
+# silently jump a major version and break the build.
+
 # ── Core ML ───────────────────────────────────────────────────────────────────
-torch>=2.2.0
-torchvision>=0.17.0
-torchaudio>=2.2.0
+torch>=2.2.0,<3.0.0
+torchvision>=0.17.0,<1.0.0
+torchaudio>=2.2.0,<3.0.0
 
 # ── HuggingFace ───────────────────────────────────────────────────────────────
-transformers>=4.47.0
-datasets>=2.19.0
-evaluate>=0.4.0
-accelerate>=0.29.0
-huggingface-hub>=0.22.0
-timm>=1.0.3
-peft>=0.10.0
+transformers>=4.47.0,<5.0.0
+datasets>=2.19.0,<4.0.0
+evaluate>=0.4.0,<1.0.0
+accelerate>=0.29.0,<2.0.0
+huggingface-hub>=0.22.0,<1.0.0
+timm>=1.0.3,<2.0.0
+peft>=0.10.0,<1.0.0
 
 # ── Vision utilities ──────────────────────────────────────────────────────────
-Pillow>=10.3.0
-opencv-python-headless>=4.9.0
-albumentations>=1.4.0
+Pillow>=10.3.0,<12.0.0
+opencv-python-headless>=4.9.0,<5.0.0
+albumentations>=1.4.0,<2.0.0
 
 # ── Experiment tracking ───────────────────────────────────────────────────────
-mlflow>=2.12.0
+mlflow>=2.12.0,<4.0.0
 
 # ── Visualisation ─────────────────────────────────────────────────────────────
-matplotlib>=3.8.0
-seaborn>=0.13.0
-plotly>=5.20.0
+matplotlib>=3.8.0,<4.0.0
+seaborn>=0.13.0,<1.0.0
+plotly>=5.20.0,<7.0.0
 
 # ── Scientific / ML utilities ─────────────────────────────────────────────────
-numpy>=1.26.0
-scipy>=1.13.0
-scikit-learn>=1.4.0
-umap-learn>=0.5.6
-einops>=0.8.0
+numpy>=1.26.0,<2.0.0
+scipy>=1.13.0,<2.0.0
+scikit-learn>=1.4.0,<2.0.0
+umap-learn>=0.5.6,<1.0.0
+einops>=0.8.0,<1.0.0
 
 # ── ONNX export ───────────────────────────────────────────────────────────────
-onnx>=1.16.0
-onnxruntime>=1.18.0
+onnx>=1.16.0,<2.0.0
+onnxruntime>=1.18.0,<2.0.0
 
 # ── Gradio UI ─────────────────────────────────────────────────────────────────
-gradio>=4.36.0
+gradio>=4.36.0,<7.0.0
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
-python-dotenv>=1.0.0
-tqdm>=4.66.0
-rich>=13.7.0
-pandas>=2.2.0
-ipywidgets>=8.1.0
-notebook>=7.1.0
+python-dotenv>=1.0.0,<2.0.0
+tqdm>=4.66.0,<5.0.0
+rich>=13.7.0,<14.0.0
+pandas>=2.2.0,<3.0.0
+tabulate>=0.9.0,<1.0.0
+ipywidgets>=8.1.0,<9.0.0
+notebook>=7.1.0,<8.0.0
