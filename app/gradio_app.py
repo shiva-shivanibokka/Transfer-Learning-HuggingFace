@@ -27,6 +27,10 @@ import gradio as gr
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
+from src.utils.logging_utils import get_logger  # noqa: E402
+
+log = get_logger("app")
+
 # ── lazy model cache ──────────────────────────────────────────────────────────
 _MODEL_CACHE: dict = {}
 
@@ -47,10 +51,10 @@ EUROSAT_CLASSES = [
 EMOTION_CLASSES = ["sadness", "joy", "love", "anger", "fear", "surprise"]
 
 VISION_MODEL_IDS = {
-    "EfficientNet-B0": "efficientnet",
-    "ResNet-50": "resnet",
-    "ViT-Base": "vit",
-    "DINOv2-Base": "dinov2",
+    "EfficientNet-B0": "efficientnet_b0",
+    "ResNet-50": "resnet50",
+    "ViT-Base": "vit_base",
+    "DINOv2-Base": "dinov2_base",
 }
 
 TEXT_MODEL_IDS = {
@@ -117,19 +121,33 @@ def _load_vision_model(model_display_name: str):
     model_key = VISION_MODEL_IDS[model_display_name]
 
     try:
-        from configs.vision_config import VisionTrainingConfig
+        from configs.vision_config import EUROSAT_CLASSES, NUM_CLASSES
         from src.vision.model import build_model
-
-        cfg = VisionTrainingConfig(
-            model_key=model_key, strategy="full_finetune", data_fraction=1.0
+        from src.utils.paths import (
+            vision_checkpoint_path,
+            DEMO_VISION_STRATEGY,
+            DEMO_VISION_FRACTION,
         )
-        model = build_model(cfg)
 
-        ckpt_path = VISION_DIR / model_key / "full_finetune" / "best_model.pt"
+        id2label = {i: c for i, c in enumerate(EUROSAT_CLASSES)}
+        label2id = {c: i for i, c in enumerate(EUROSAT_CLASSES)}
+        model, _ = build_model(
+            model_key=model_key,
+            num_classes=NUM_CLASSES,
+            id2label=id2label,
+            label2id=label2id,
+            strategy=DEMO_VISION_STRATEGY,
+        )
+
+        ckpt_path = vision_checkpoint_path(
+            model_key, DEMO_VISION_STRATEGY, DEMO_VISION_FRACTION
+        )
         if ckpt_path.exists():
-            model.load_state_dict(torch.load(ckpt_path, map_location=DEVICE))
+            state = torch.load(ckpt_path, map_location=DEVICE, weights_only=True)
+            model.load_state_dict(state)
+            log.info("Loaded vision checkpoint %s", ckpt_path)
         else:
-            print(f"[warn] No checkpoint found at {ckpt_path}; using random weights.")
+            log.warning("No checkpoint at %s; serving RANDOM weights", ckpt_path)
 
         model.to(DEVICE).eval()
         _MODEL_CACHE[cache_key] = model
@@ -153,12 +171,31 @@ def _vision_transform(pil_image: Image.Image) -> torch.Tensor:
 
 
 def _compute_attention_rollout_app(model, tensor: torch.Tensor) -> np.ndarray | None:
-    """Attempt attention rollout for ViT/DINOv2; returns None for CNNs."""
+    """Run the model with output_attentions and roll attention up to a 224x224 map.
+
+    compute_attention_rollout expects a LIST of per-layer attention tensors,
+    not (model, tensor) — passing the wrong args was why the overlay silently
+    never appeared. Returns None for CNNs (no attentions) or on any failure.
+    """
     try:
         from src.utils.visualization import compute_attention_rollout
 
-        return compute_attention_rollout(model, tensor)
-    except Exception:
+        with torch.no_grad():
+            out = model(tensor, output_attentions=True)
+        attentions = getattr(out, "attentions", None)
+        if not attentions:
+            return None
+        rollout = compute_attention_rollout([a.cpu() for a in attentions])  # (P,)
+        side = int(round(float(np.sqrt(rollout.shape[0]))))
+        if side * side != rollout.shape[0]:
+            return None
+        attn_map = rollout.reshape(side, side).astype(np.float32)
+        attn_img = Image.fromarray(attn_map).resize((224, 224), Image.BILINEAR)
+        arr = np.asarray(attn_img, dtype=np.float32)
+        arr = (arr - arr.min()) / (arr.max() - arr.min() + 1e-8)
+        return arr
+    except Exception as exc:
+        log.warning("attention rollout failed: %s", exc)
         return None
 
 
@@ -240,24 +277,27 @@ def _load_text_model(model_display_name: str):
     try:
         from configs.text_config import TEXT_MODELS
         from transformers import AutoTokenizer, AutoModelForSequenceClassification
+        from src.utils.paths import text_checkpoint_path, text_temperature_path
 
         cfg = TEXT_MODELS[model_key]
-        tokenizer = AutoTokenizer.from_pretrained(cfg["model_id"])
+        tokenizer = AutoTokenizer.from_pretrained(cfg["hf_id"])
         model = AutoModelForSequenceClassification.from_pretrained(
-            cfg["model_id"], num_labels=len(EMOTION_CLASSES)
+            cfg["hf_id"], num_labels=len(EMOTION_CLASSES)
         )
 
-        ckpt_path = TEXT_DIR / model_key / "best_model.pt"
+        ckpt_path = text_checkpoint_path(model_key)
         if ckpt_path.exists():
-            model.load_state_dict(torch.load(ckpt_path, map_location=DEVICE))
+            state = torch.load(ckpt_path, map_location=DEVICE, weights_only=True)
+            model.load_state_dict(state)
+            log.info("Loaded text checkpoint %s", ckpt_path)
         else:
-            print(f"[warn] No checkpoint found at {ckpt_path}; using random weights.")
+            log.warning("No checkpoint at %s; serving RANDOM weights", ckpt_path)
 
         model.to(DEVICE).eval()
 
-        # Load temperature if available
-        temp_path = TEXT_DIR / model_key / "temperature.json"
+        # Load calibration temperature if available
         temperature = 1.0
+        temp_path = text_temperature_path(model_key)
         if temp_path.exists():
             with open(temp_path) as f:
                 temperature = json.load(f).get("temperature", 1.0)
@@ -338,7 +378,7 @@ def _load_clip():
         from transformers import CLIPModel, CLIPProcessor
         from configs.clip_config import CLIP_MODEL_ID
 
-        print(f"[clip] Loading {CLIP_MODEL_ID}...")
+        log.info("Loading CLIP model %s", CLIP_MODEL_ID)
         clip_model = CLIPModel.from_pretrained(CLIP_MODEL_ID).to(DEVICE)
         clip_processor = CLIPProcessor.from_pretrained(CLIP_MODEL_ID)
         clip_model.eval()
@@ -353,7 +393,9 @@ def _load_clip_index():
     if "clip_index" in _MODEL_CACHE:
         return _MODEL_CACHE["clip_index"]
 
-    index_path = CLIP_DIR / "retrieval_index.pt"
+    from src.utils.paths import clip_index_path
+
+    index_path = clip_index_path()
     if not index_path.exists():
         raise gr.Error(
             f"CLIP retrieval index not found at {index_path}. "
@@ -404,7 +446,9 @@ def clip_search(query: str, k: int):
         else:
             pil_img = img_arr
 
-        cls_name = EUROSAT_CLASSES[index_labels[idx].item()]
+        lbl = index_labels[idx]
+        lbl = int(lbl.item()) if hasattr(lbl, "item") else int(lbl)
+        cls_name = EUROSAT_CLASSES[lbl]
         sim_score = sims[idx].item()
         caption = f"{cls_name} (sim={sim_score:.3f})"
         gallery.append((pil_img, caption))
@@ -530,171 +574,172 @@ HEADER_MD = """
 Explore vision classification, emotion detection, and CLIP image search — all powered by pretrained HuggingFace models.
 """
 
-with gr.Blocks(title="Transfer Learning Demo", theme=gr.themes.Soft()) as demo:
-    gr.Markdown(HEADER_MD)
+def build_demo() -> gr.Blocks:
+    """Build and return the Gradio app.
 
-    # ── TAB 1: Vision Classifier ──────────────────────────────────────────────
-    with gr.Tab("Vision Classifier"):
-        gr.Markdown(
-            "## Land-Use Classification on EuroSAT\nUpload a satellite image patch and classify it using one of four pretrained vision models."
-        )
+    Wrapped in a function so importing this module (e.g. in tests) does NOT
+    construct the UI or fetch remote example assets at import time.
+    """
+    with gr.Blocks(title="Transfer Learning Demo", theme=gr.themes.Soft()) as demo:
+        gr.Markdown(HEADER_MD)
 
-        with gr.Row():
-            with gr.Column(scale=1):
-                vision_img_input = gr.Image(
-                    type="pil", label="Input Image (64×64 or larger satellite patch)"
-                )
-                vision_model_dd = gr.Dropdown(
-                    choices=list(VISION_MODEL_IDS.keys()),
-                    value="DINOv2-Base",
-                    label="Model",
-                )
-                vision_submit_btn = gr.Button("Classify", variant="primary")
+        # ── TAB 1: Vision Classifier ──────────────────────────────────────────
+        with gr.Tab("Vision Classifier"):
+            gr.Markdown(
+                "## Land-Use Classification on EuroSAT\nUpload a satellite image patch and classify it using one of four pretrained vision models."
+            )
 
-            with gr.Column(scale=2):
-                vision_label_out = gr.Markdown(label="Prediction")
-                vision_latency_out = gr.Markdown(label="Latency")
-                vision_conf_chart = gr.Plot(label="Class Probabilities")
-                vision_attn_img = gr.Image(
-                    type="pil", label="Attention Rollout (ViT / DINOv2 only)"
-                )
+            with gr.Row():
+                with gr.Column(scale=1):
+                    vision_img_input = gr.Image(
+                        type="pil",
+                        label="Input Image (64×64 or larger satellite patch)",
+                    )
+                    vision_model_dd = gr.Dropdown(
+                        choices=list(VISION_MODEL_IDS.keys()),
+                        value="DINOv2-Base",
+                        label="Model",
+                    )
+                    vision_submit_btn = gr.Button("Classify", variant="primary")
 
-        vision_submit_btn.click(
-            fn=vision_predict,
-            inputs=[vision_img_input, vision_model_dd],
-            outputs=[
-                vision_label_out,
-                vision_conf_chart,
-                vision_attn_img,
-                vision_latency_out,
-            ],
-        )
+                with gr.Column(scale=2):
+                    vision_label_out = gr.Markdown(label="Prediction")
+                    vision_latency_out = gr.Markdown(label="Latency")
+                    vision_conf_chart = gr.Plot(label="Class Probabilities")
+                    vision_attn_img = gr.Image(
+                        type="pil", label="Attention Rollout (ViT / DINOv2 only)"
+                    )
 
-        gr.Examples(
-            examples=[
-                [
-                    "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4f/Landsat_Image_of_Agricultural_Area.jpg/256px-Landsat_Image_of_Agricultural_Area.jpg",
-                    "DINOv2-Base",
+            vision_submit_btn.click(
+                fn=vision_predict,
+                inputs=[vision_img_input, vision_model_dd],
+                outputs=[
+                    vision_label_out,
+                    vision_conf_chart,
+                    vision_attn_img,
+                    vision_latency_out,
                 ],
-            ],
-            inputs=[vision_img_input, vision_model_dd],
-            label="Example Inputs",
-        )
+            )
+            # NOTE: a remote-URL example was removed — fetching an external image
+            # at build time made the Space build fragile. Upload a local patch
+            # or add a committed sample image under results/ to restore examples.
 
-    # ── TAB 2: Text Emotion Detector ──────────────────────────────────────────
-    with gr.Tab("Text Emotion Detector"):
-        gr.Markdown(
-            "## Emotion Detection from Text\nEnter a sentence or tweet and detect its emotion. Compares raw vs temperature-scaled confidence."
-        )
+        # ── TAB 2: Text Emotion Detector ──────────────────────────────────────
+        with gr.Tab("Text Emotion Detector"):
+            gr.Markdown(
+                "## Emotion Detection from Text\nEnter a sentence or tweet and detect its emotion. Compares raw vs temperature-scaled confidence."
+            )
 
-        with gr.Row():
-            with gr.Column(scale=1):
-                text_input = gr.Textbox(
-                    label="Input Text",
-                    placeholder="I feel absolutely amazing today!",
-                    lines=4,
-                )
-                text_model_dd = gr.Dropdown(
-                    choices=list(TEXT_MODEL_IDS.keys()),
-                    value="ModernBERT",
-                    label="Model",
-                )
-                text_submit_btn = gr.Button("Detect Emotion", variant="primary")
+            with gr.Row():
+                with gr.Column(scale=1):
+                    text_input = gr.Textbox(
+                        label="Input Text",
+                        placeholder="I feel absolutely amazing today!",
+                        lines=4,
+                    )
+                    text_model_dd = gr.Dropdown(
+                        choices=list(TEXT_MODEL_IDS.keys()),
+                        value="ModernBERT",
+                        label="Model",
+                    )
+                    text_submit_btn = gr.Button("Detect Emotion", variant="primary")
 
-            with gr.Column(scale=2):
-                text_label_out = gr.Markdown(label="Prediction")
-                with gr.Row():
-                    text_conf_raw = gr.Plot(label="Uncalibrated Confidence")
-                    text_conf_cal = gr.Plot(label="Calibrated Confidence")
+                with gr.Column(scale=2):
+                    text_label_out = gr.Markdown(label="Prediction")
+                    with gr.Row():
+                        text_conf_raw = gr.Plot(label="Uncalibrated Confidence")
+                        text_conf_cal = gr.Plot(label="Calibrated Confidence")
 
-        text_submit_btn.click(
-            fn=text_predict,
-            inputs=[text_input, text_model_dd],
-            outputs=[text_label_out, text_conf_raw, text_conf_cal],
-        )
+            text_submit_btn.click(
+                fn=text_predict,
+                inputs=[text_input, text_model_dd],
+                outputs=[text_label_out, text_conf_raw, text_conf_cal],
+            )
 
-        gr.Examples(
-            examples=[
-                ["I can't stop crying, everything feels so hopeless.", "RoBERTa"],
-                ["Best day ever! Just got promoted!", "ModernBERT"],
-                ["omg I'm so scared I have a job interview tomorrow", "ModernBERT"],
-                ["I love spending time with my family :)", "RoBERTa"],
-            ],
-            inputs=[text_input, text_model_dd],
-            label="Example Inputs",
-        )
+            gr.Examples(
+                examples=[
+                    ["I can't stop crying, everything feels so hopeless.", "RoBERTa"],
+                    ["Best day ever! Just got promoted!", "ModernBERT"],
+                    ["omg I'm so scared I have a job interview tomorrow", "ModernBERT"],
+                    ["I love spending time with my family :)", "RoBERTa"],
+                ],
+                inputs=[text_input, text_model_dd],
+                label="Example Inputs",
+            )
 
-    # ── TAB 3: CLIP Image Search ───────────────────────────────────────────────
-    with gr.Tab("CLIP Image Search"):
-        gr.Markdown(
-            "## Text-to-Image Retrieval with CLIP\n"
-            "Search through a cached index of **1,000 EuroSAT images** (100 per class) "
-            "using natural language queries. Powered by CLIP's shared embedding space."
-        )
+        # ── TAB 3: CLIP Image Search ──────────────────────────────────────────
+        with gr.Tab("CLIP Image Search"):
+            gr.Markdown(
+                "## Text-to-Image Retrieval with CLIP\n"
+                "Search through a cached index of **1,000 EuroSAT images** (100 per class) "
+                "using natural language queries. Powered by CLIP's shared embedding space."
+            )
 
-        with gr.Row():
-            with gr.Column(scale=1):
-                clip_query_input = gr.Textbox(
-                    label="Text Query",
-                    placeholder="a satellite image of a river",
-                    lines=2,
-                )
-                clip_k_slider = gr.Slider(
-                    minimum=1,
-                    maximum=10,
-                    value=5,
-                    step=1,
-                    label="Number of results (k)",
-                )
-                clip_search_btn = gr.Button("Search", variant="primary")
+            with gr.Row():
+                with gr.Column(scale=1):
+                    clip_query_input = gr.Textbox(
+                        label="Text Query",
+                        placeholder="a satellite image of a river",
+                        lines=2,
+                    )
+                    clip_k_slider = gr.Slider(
+                        minimum=1,
+                        maximum=10,
+                        value=5,
+                        step=1,
+                        label="Number of results (k)",
+                    )
+                    clip_search_btn = gr.Button("Search", variant="primary")
 
-            with gr.Column(scale=3):
-                clip_gallery = gr.Gallery(
-                    label="Retrieved Images",
-                    columns=5,
-                    height="auto",
-                    object_fit="cover",
-                )
+                with gr.Column(scale=3):
+                    clip_gallery = gr.Gallery(
+                        label="Retrieved Images",
+                        columns=5,
+                        height="auto",
+                        object_fit="cover",
+                    )
 
-        clip_search_btn.click(
-            fn=clip_search,
-            inputs=[clip_query_input, clip_k_slider],
-            outputs=[clip_gallery],
-        )
+            clip_search_btn.click(
+                fn=clip_search,
+                inputs=[clip_query_input, clip_k_slider],
+                outputs=[clip_gallery],
+            )
 
-        gr.Examples(
-            examples=[
-                ["a satellite image of a river", 5],
-                ["urban areas with buildings", 5],
-                ["green forested areas", 5],
-                ["large bodies of water", 5],
-                ["industrial land", 5],
-                ["crop fields", 8],
-                ["residential neighborhoods", 8],
-            ],
-            inputs=[clip_query_input, clip_k_slider],
-            label="Example Queries",
-        )
+            gr.Examples(
+                examples=[
+                    ["a satellite image of a river", 5],
+                    ["urban areas with buildings", 5],
+                    ["green forested areas", 5],
+                    ["large bodies of water", 5],
+                    ["industrial land", 5],
+                    ["crop fields", 8],
+                    ["residential neighborhoods", 8],
+                ],
+                inputs=[clip_query_input, clip_k_slider],
+                label="Example Queries",
+            )
 
-    # ── TAB 4: Experiment Results ──────────────────────────────────────────────
-    with gr.Tab("Experiment Results"):
-        gr.Markdown(
-            "## Experiment Results Summary\n"
-            "Loads pre-computed results from `results/vision/`, `results/text/`, "
-            "and `results/clip/`. Run the training notebooks first to populate these files."
-        )
+        # ── TAB 4: Experiment Results ─────────────────────────────────────────
+        with gr.Tab("Experiment Results"):
+            gr.Markdown(
+                "## Experiment Results Summary\n"
+                "Loads pre-computed results from `results/vision/`, `results/text/`, "
+                "and `results/clip/`. Run the training notebooks first to populate these files."
+            )
 
-        results_display = gr.Markdown(value="Click **Refresh** to load results.")
-        results_refresh_btn = gr.Button("Refresh Results", variant="secondary")
+            results_display = gr.Markdown(value="Click **Refresh** to load results.")
+            results_refresh_btn = gr.Button("Refresh Results", variant="secondary")
 
-        results_refresh_btn.click(
-            fn=load_results,
-            inputs=[],
-            outputs=[results_display],
-        )
+            results_refresh_btn.click(
+                fn=load_results,
+                inputs=[],
+                outputs=[results_display],
+            )
 
-        # Auto-load on tab render
-        demo.load(fn=load_results, inputs=[], outputs=[results_display])
+            # Auto-load on tab render
+            demo.load(fn=load_results, inputs=[], outputs=[results_display])
+
+    return demo
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -702,4 +747,10 @@ with gr.Blocks(title="Transfer Learning Demo", theme=gr.themes.Soft()) as demo:
 # ══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    demo.launch(share=True)
+    import os
+
+    demo = build_demo()
+    demo.queue().launch(
+        server_name="0.0.0.0",
+        server_port=int(os.getenv("PORT", "7860")),
+    )

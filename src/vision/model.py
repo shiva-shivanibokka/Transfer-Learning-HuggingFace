@@ -8,16 +8,11 @@ Each model is returned as a standard nn.Module with a .forward(x) → logits int
 
 from __future__ import annotations
 
-from typing import Optional
-
-import torch
 import torch.nn as nn
 from transformers import (
     AutoFeatureExtractor,
     AutoImageProcessor,
     AutoModelForImageClassification,
-    ViTForImageClassification,
-    Dinov2ForImageClassification,
 )
 
 
