@@ -4,7 +4,6 @@ Configuration for Notebook 2: Text transfer learning + calibration study.
 
 from dataclasses import dataclass
 
-
 # ── Dataset ────────────────────────────────────────────────────────────────────
 
 DATASET_NAME = "dair-ai/emotion"

@@ -1,6 +1,6 @@
-from src.utils import paths
-from configs.vision_config import VISION_MODELS
 from configs.text_config import TEXT_MODELS
+from configs.vision_config import VISION_MODELS
+from src.utils import paths
 
 
 def test_vision_checkpoint_path_matches_run_dir():

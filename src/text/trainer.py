@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 import mlflow
 import numpy as np
@@ -30,12 +29,12 @@ from configs.text_config import (
     TEXT_MODELS,
     TextTrainingConfig,
 )
+from src.utils.logging_utils import get_logger
 from src.utils.metrics import (
     TemperatureScaler,
     compute_classification_metrics,
     compute_ece,
 )
-from src.utils.logging_utils import get_logger
 
 log = get_logger(__name__)
 
@@ -180,7 +179,6 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
         )
 
         # ── Calibration ────────────────────────────────────────────────────────
-        device = "cuda" if torch.cuda.is_available() else "cpu"
         confidences = torch.softmax(torch.tensor(logits, dtype=torch.float32), dim=-1)
         max_conf = confidences.max(dim=-1).values.numpy()
 
@@ -190,16 +188,9 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
         mlflow.log_metric("ece_before_calibration", ece_before)
         log.info(f"  ECE before calibration: {ece_before:.4f}")
 
-        # Fit temperature scaler on validation set
-        # Build a simple DataLoader for calibration
-        from torch.utils.data import DataLoader, TensorDataset
-
+        # Fit temperature scaler on the validation logits directly.
         val_logits = trainer.predict(tokenised["validation"]).predictions
         val_labels = tokenised["validation"]["labels"]
-        calib_ds = TensorDataset(
-            torch.tensor(val_logits, dtype=torch.float32),
-            torch.tensor(val_labels),
-        )
 
         # Wrap model for temperature scaling
         scaler = TemperatureScaler(model.cpu())

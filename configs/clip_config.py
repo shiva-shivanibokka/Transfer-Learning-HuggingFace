@@ -2,9 +2,8 @@
 Configuration for Notebook 3: CLIP zero-shot + prompt engineering study.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, List
-
+from dataclasses import dataclass
+from typing import Dict
 
 # ── Model ──────────────────────────────────────────────────────────────────────
 

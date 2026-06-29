@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 import mlflow
 import numpy as np
@@ -28,7 +27,6 @@ from transformers import CLIPModel, CLIPProcessor
 
 from configs.clip_config import (
     CLASS_DESCRIPTIONS,
-    CLIP_MODEL_ID,
     EUROSAT_CLASSES,
     FEW_SHOT_K_VALUES,
     NUM_CLASSES,

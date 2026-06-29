@@ -15,7 +15,6 @@ from transformers import (
     AutoModelForImageClassification,
 )
 
-
 # ── Model builders ─────────────────────────────────────────────────────────────
 
 
@@ -43,7 +42,7 @@ def build_model(
     Returns:
         (model, processor) where processor converts PIL images to tensors.
     """
-    from configs.vision_config import VISION_MODELS, STRATEGIES
+    from configs.vision_config import STRATEGIES, VISION_MODELS
 
     hf_id = VISION_MODELS[model_key]["hf_id"]
     strategy_cfg = STRATEGIES[strategy]

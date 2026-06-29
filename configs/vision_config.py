@@ -3,9 +3,7 @@ Configuration for Notebook 1: Vision transfer learning experiments.
 All hyperparameters and model definitions live here — notebooks import this.
 """
 
-from dataclasses import dataclass, field
-from typing import Optional
-
+from dataclasses import dataclass
 
 # ── Dataset ────────────────────────────────────────────────────────────────────
 

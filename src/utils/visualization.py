@@ -5,16 +5,12 @@ learning curves, latency/accuracy scatter, attention rollout for ViT/DINOv2.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Optional
 
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
 import numpy as np
 import torch
-import torch.nn.functional as F
 from PIL import Image
-
 
 # ── Colour palette ────────────────────────────────────────────────────────────
 
@@ -101,13 +97,13 @@ def plot_reliability_diagram(
 
     lowers = bin_data_before["bin_lowers"]
     uppers = bin_data_before["bin_uppers"]
-    centers = [(l + u) / 2 for l, u in zip(lowers, uppers)]
+    centers = [(lo + up) / 2 for lo, up in zip(lowers, uppers)]
 
     # Before calibration
     ax.bar(
         centers,
         bin_data_before["bin_accuracy"],
-        width=[(u - l) * 0.9 for l, u in zip(lowers, uppers)],
+        width=[(up - lo) * 0.9 for lo, up in zip(lowers, uppers)],
         alpha=0.5,
         color="#4E79A7",
         label=f"Before scaling (ECE={ece_before:.3f})",
@@ -126,7 +122,7 @@ def plot_reliability_diagram(
         ax.bar(
             centers,
             bin_data_after["bin_accuracy"],
-            width=[(u - l) * 0.9 for l, u in zip(lowers, uppers)],
+            width=[(up - lo) * 0.9 for lo, up in zip(lowers, uppers)],
             alpha=0.4,
             color="#F28E2B",
             label=f"After scaling (ECE={ece_after:.3f})",

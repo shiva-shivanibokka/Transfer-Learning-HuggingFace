@@ -6,15 +6,11 @@ augmentation pipelines, DataLoader construction.
 from __future__ import annotations
 
 import random
-from typing import Optional
 
-import numpy as np
-import torch
 from datasets import load_dataset
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision import transforms
-
 
 # ── EuroSAT label map ─────────────────────────────────────────────────────────
 

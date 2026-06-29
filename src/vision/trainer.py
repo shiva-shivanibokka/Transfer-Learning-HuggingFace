@@ -9,35 +9,32 @@ and evaluation. MLflow logging is wired in via a custom callback.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
-from typing import Optional
 
 import mlflow
 import numpy as np
 import torch
 from transformers import (
+    EarlyStoppingCallback,
     Trainer,
     TrainingArguments,
-    EarlyStoppingCallback,
 )
 from transformers.trainer_callback import TrainerCallback, TrainerControl, TrainerState
 
-from src.utils.data import load_eurosat
-from src.utils.metrics import (
-    benchmark_latency,
-    compute_classification_metrics,
-    export_to_onnx,
-    benchmark_onnx_latency,
-)
-from src.vision.model import build_model, count_trainable_params
 from configs.vision_config import (
-    VisionTrainingConfig,
-    VISION_MODELS,
     EUROSAT_CLASSES,
     NUM_CLASSES,
+    VISION_MODELS,
+    VisionTrainingConfig,
 )
+from src.utils.data import load_eurosat
 from src.utils.logging_utils import get_logger
+from src.utils.metrics import (
+    benchmark_latency,
+    benchmark_onnx_latency,
+    export_to_onnx,
+)
+from src.vision.model import build_model, count_trainable_params
 
 log = get_logger(__name__)
 

@@ -5,6 +5,9 @@ addopts = "-q"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Notebooks follow exploratory conventions (top-level expressions, re-imports);
+# linting them adds noise without production value.
+extend-exclude = ["notebooks", "*.ipynb"]
 
 [tool.ruff.lint]
 # E/F = pyflakes+pycodestyle, I = isort. Pragmatic set for a research repo.

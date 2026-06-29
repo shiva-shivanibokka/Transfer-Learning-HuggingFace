@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import sys
 from pathlib import Path
 
@@ -30,10 +29,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from configs.vision_config import (
-    VisionTrainingConfig,
-    VISION_MODELS,
-    STRATEGIES,
     DATA_FRACTIONS,
+    STRATEGIES,
+    VISION_MODELS,
+    VisionTrainingConfig,
 )
 from src.vision.trainer import train_vision_model
 

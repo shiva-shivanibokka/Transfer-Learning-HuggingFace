@@ -8,20 +8,22 @@ Transfer Learning HuggingFace — Gradio Demo App
   4. Experiment Results     — loads saved CSV/JSON result files
 """
 
+import json
 import sys
 import time
-import json
-import torch
+
+import matplotlib
 import numpy as np
 import pandas as pd
-import matplotlib
+import torch
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 from pathlib import Path
-from PIL import Image
+
 import gradio as gr
+import matplotlib.cm as cm
+import matplotlib.pyplot as plt
+from PIL import Image
 
 # ── path setup ────────────────────────────────────────────────────────────────
 ROOT = Path(__file__).parent.parent
@@ -122,12 +124,12 @@ def _load_vision_model(model_display_name: str):
 
     try:
         from configs.vision_config import EUROSAT_CLASSES, NUM_CLASSES
-        from src.vision.model import build_model
         from src.utils.paths import (
-            vision_checkpoint_path,
-            DEMO_VISION_STRATEGY,
             DEMO_VISION_FRACTION,
+            DEMO_VISION_STRATEGY,
+            vision_checkpoint_path,
         )
+        from src.vision.model import build_model
 
         id2label = {i: c for i, c in enumerate(EUROSAT_CLASSES)}
         label2id = {c: i for i, c in enumerate(EUROSAT_CLASSES)}
@@ -275,8 +277,9 @@ def _load_text_model(model_display_name: str):
     model_key = TEXT_MODEL_IDS[model_display_name]
 
     try:
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
         from configs.text_config import TEXT_MODELS
-        from transformers import AutoTokenizer, AutoModelForSequenceClassification
         from src.utils.paths import text_checkpoint_path, text_temperature_path
 
         cfg = TEXT_MODELS[model_key]
@@ -338,7 +341,6 @@ def text_predict(text_input: str, model_name: str):
     probs_raw = _softmax(logits)
     probs_cal = _softmax(logits / temperature)
 
-    pred_idx_raw = int(probs_raw.argmax())
     pred_idx_cal = int(probs_cal.argmax())
     pred_cls = EMOTION_CLASSES[pred_idx_cal]
     conf = probs_cal[pred_idx_cal]
@@ -376,6 +378,7 @@ def _load_clip():
 
     try:
         from transformers import CLIPModel, CLIPProcessor
+
         from configs.clip_config import CLIP_MODEL_ID
 
         log.info("Loading CLIP model %s", CLIP_MODEL_ID)
