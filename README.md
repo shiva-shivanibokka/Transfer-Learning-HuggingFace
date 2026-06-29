@@ -1,3 +1,13 @@
+---
+title: Transfer Learning Project
+emoji: 🛰️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Transfer Learning & HuggingFace Model Hub Showcase
 
 An empirical study of transfer learning efficiency across **4 vision architectures** (ResNet-50, EfficientNet-B0, ViT-Base, DINOv2-Base) and **2 text encoders** (RoBERTa, ModernBERT) on a niche satellite domain. Answers three questions no other project answers:
