@@ -14,3 +14,6 @@ results/**/*.safetensors
 .ipynb_checkpoints/
 wandb/
 lightning_logs/
+
+# Local-only planning/scratch docs — keep on disk, never commit
+docs/superpowers/
