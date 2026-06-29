@@ -214,8 +214,17 @@ def train_vision_model(
             }
         )
 
+        # Persist the deployable checkpoint. load_best_model_at_end=True means
+        # `model` is already the best epoch's weights — save them where the app
+        # (via src.utils.paths) will look for them.
+        from src.utils.paths import vision_checkpoint_path
+
+        ckpt_path = vision_checkpoint_path(cfg.model_key, cfg.strategy, cfg.data_fraction)
+        ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(model.state_dict(), ckpt_path)
+        print(f"  Saved deployable checkpoint -> {ckpt_path}")
+
         # Latency benchmark (CPU)
-        device = "cuda" if torch.cuda.is_available() else "cpu"
         latency = benchmark_latency(model, image_size=224, device="cpu")
         mlflow.log_metrics(
             {
@@ -241,16 +250,20 @@ def train_vision_model(
             print(f"  ONNX export failed: {e}")
             onnx_latency = {}
 
-        # Save result JSON
+        # Save result JSON. Flat scalar keys so the summary CSV is clean
+        # (no nested dicts rendered as Python reprs).
         result = {
             "model_key": cfg.model_key,
             "strategy": cfg.strategy,
             "data_fraction": cfg.data_fraction,
-            "param_info": param_info,
+            "trainable_params": param_info["trainable_params"],
+            "total_params": param_info["total_params"],
+            "trainable_pct": param_info["trainable_pct"],
             "test_accuracy": test_results.get("eval_accuracy", 0),
             "test_f1_macro": test_results.get("eval_f1_macro", 0),
-            "latency_cpu": latency,
-            "latency_onnx": onnx_latency,
+            "latency_cpu_mean_ms": latency.get("mean_ms"),
+            "latency_cpu_p95_ms": latency.get("p95_ms"),
+            "onnx_mean_ms": onnx_latency.get("mean_ms") if onnx_latency else None,
         }
 
         result_path = output_dir / "result.json"

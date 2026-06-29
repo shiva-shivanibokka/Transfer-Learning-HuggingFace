@@ -87,7 +87,12 @@ def run_all_experiments(study: str = "all", push_to_hub: bool = False) -> list[d
     summary_path = Path("results/vision/summary.csv")
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     if results:
-        keys = [k for k in results[0].keys() if k not in ("model", "processor")]
+        keys = [
+            "model_key", "strategy", "data_fraction",
+            "trainable_params", "total_params", "trainable_pct",
+            "test_accuracy", "test_f1_macro",
+            "latency_cpu_mean_ms", "latency_cpu_p95_ms", "onnx_mean_ms",
+        ]
         with open(summary_path, "w", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore")
             writer.writeheader()
