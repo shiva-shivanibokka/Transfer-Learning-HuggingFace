@@ -218,7 +218,7 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
         for _ in range(cfg.temperature_epochs):
             optimizer.step(closure)
 
-        T = scaler.T
+        T = max(float(scaler.T), 0.05)  # guard: avoid div-by-~0 at serve time
         mlflow.log_metric("temperature", T)
         print(f"  Optimal temperature T={T:.4f}")
 
@@ -247,6 +247,18 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
         result_path = output_dir / "result.json"
         result_path.write_text(json.dumps(result, indent=2))
         mlflow.log_artifact(str(result_path))
+
+        # Persist the deployable checkpoint + calibration temperature where the
+        # app (via src.utils.paths) looks for them. model is already CPU here.
+        from src.utils.paths import text_checkpoint_path, text_temperature_path
+
+        ckpt_path = text_checkpoint_path(cfg.model_key)
+        ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(model.state_dict(), ckpt_path)
+
+        temp_path = text_temperature_path(cfg.model_key)
+        temp_path.write_text(json.dumps({"temperature": T}, indent=2))
+        print(f"  Saved checkpoint -> {ckpt_path}; temperature={T:.4f}")
 
         # Hub push
         if cfg.push_to_hub and cfg.hub_model_id:
