@@ -2,6 +2,17 @@
 testpaths = ["tests"]
 addopts = "-q"
 
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/__init__.py"]
+
+[tool.coverage.report]
+show_missing = true
+# The deterministic logic layer (paths, metrics, data, logging) is unit-tested;
+# the training/serving paths are validated by an end-to-end run, not unit tests,
+# so overall coverage is intentionally partial. No hard gate to avoid a
+# misleading red build on integration-only modules.
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

@@ -19,8 +19,45 @@ jobs:
           pip install -r requirements-ci.txt
       - name: Lint
         run: ruff check .
-      - name: Run lightweight tests
+      - name: Run lightweight tests with coverage
         # Pure-logic + contract tests. Tests needing heavy/networked deps
         # (transformers, gradio, datasets, torchvision) skip themselves via
         # importorskip, so CI stays fast and free.
-        run: pytest tests/ -q
+        run: pytest tests/ -q --cov=src --cov-report=term-missing --cov-report=xml
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+  docker-build:
+    # Validates that the serving image (requirements-app.txt) still builds, so a
+    # broken Dockerfile is caught here rather than on the Hugging Face Space.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the serving image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  security-audit:
+    # Advisory scan of the serving dependencies for known CVEs. Non-blocking:
+    # ML stacks routinely carry unfixable transitive advisories, so this surfaces
+    # them in the logs without failing the build. Review the output periodically.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: pip-audit (serving deps)
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          pip-audit -r requirements-app.txt || true
