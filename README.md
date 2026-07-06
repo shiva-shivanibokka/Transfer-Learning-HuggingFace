@@ -10,6 +10,10 @@ pinned: false
 
 # Transfer Learning & HuggingFace Model Hub Showcase
 
+[![CI](https://github.com/sbokk/Transfer-Learning-HuggingFace/actions/workflows/ci.yml/badge.svg)](https://github.com/sbokk/Transfer-Learning-HuggingFace/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.12-blue)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.6%2Bcu124-ee4c2c)
+
 An empirical study of transfer learning efficiency across **4 vision architectures** (ResNet-50, EfficientNet-B0, ViT-Base, DINOv2-Base) and **2 text encoders** (RoBERTa, ModernBERT) on a niche satellite domain. Answers three questions no other project answers:
 
 1. Does DINOv2's self-supervised pretraining transfer better than supervised ViT to satellite imagery?
