@@ -261,6 +261,10 @@ def vision_predict(pil_image: Image.Image, model_name: str):
         if rollout is not None:
             attn_image = _overlay_attention(pil_image, rollout)
 
+    log.info(
+        "vision_predict model=%s pred=%s conf=%.3f latency_ms=%.1f",
+        model_name, pred_cls, conf, latency_ms,
+    )
     return label_str, conf_chart, attn_image, latency_str
 
 
@@ -364,6 +368,10 @@ def text_predict(text_input: str, model_name: str):
         color="#2ecc71",
     )
 
+    log.info(
+        "text_predict model=%s pred=%s conf=%.3f chars=%d",
+        model_name, pred_cls, conf, len(text_input),
+    )
     return label_str, conf_chart_raw, conf_chart_cal
 
 
@@ -418,6 +426,7 @@ def clip_search(query: str, k: int):
     if not query or not query.strip():
         return []
 
+    t0 = time.perf_counter()
     clip_model, clip_processor = _load_clip()
     index_data = _load_clip_index()
 
@@ -456,6 +465,10 @@ def clip_search(query: str, k: int):
         caption = f"{cls_name} (sim={sim_score:.3f})"
         gallery.append((pil_img, caption))
 
+    log.info(
+        "clip_search query=%r k=%d results=%d elapsed_ms=%.1f",
+        query, int(k), len(gallery), (time.perf_counter() - t0) * 1000,
+    )
     return gallery
 
 
@@ -749,11 +762,32 @@ def build_demo() -> gr.Blocks:
 #  ENTRY POINT
 # ══════════════════════════════════════════════════════════════════════════════
 
+def build_app():
+    """Mount the Gradio demo under a FastAPI app that also exposes /health.
+
+    The demo lives at ``/``; ``/health`` is a lightweight liveness probe the
+    deployment platform (HF Spaces / Docker) can poll without loading a model.
+    """
+    from fastapi import FastAPI
+
+    fastapi_app = FastAPI(title="Transfer Learning Demo")
+
+    @fastapi_app.get("/health")
+    def health() -> dict:
+        return {"status": "ok"}
+
+    demo = build_demo()
+    return gr.mount_gradio_app(fastapi_app, demo.queue(), path="/")
+
+
 if __name__ == "__main__":
     import os
 
-    demo = build_demo()
-    demo.queue().launch(
-        server_name="0.0.0.0",
-        server_port=int(os.getenv("PORT", "7860")),
+    import uvicorn
+
+    log.info("Starting server on 0.0.0.0:%s", os.getenv("PORT", "7860"))
+    uvicorn.run(
+        build_app(),
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", "7860")),
     )
