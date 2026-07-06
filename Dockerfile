@@ -16,7 +16,15 @@ ENV PATH="/home/user/.local/bin:$PATH" \
 
 WORKDIR /home/user/app
 
-# Install slim inference deps first so this layer caches across code changes.
+# Install CPU-only torch first. This is a CPU Space, and the default PyPI torch
+# wheel on Linux bundles CUDA (several GB of nvidia libs that never run here),
+# which would bloat the image and cripple free-tier cold starts. The CPU wheel
+# is ~200MB. requirements-app.txt's torch>=2.6 is then already satisfied.
+RUN pip install --no-cache-dir --user \
+        "torch>=2.6,<3" "torchvision>=0.21,<1" \
+        --index-url https://download.pytorch.org/whl/cpu
+
+# Then the rest of the slim inference deps (this layer caches across code changes).
 COPY --chown=user requirements-app.txt .
 RUN pip install --no-cache-dir --user -r requirements-app.txt
 

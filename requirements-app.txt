@@ -8,7 +8,7 @@ torch>=2.6.0,<3.0.0
 torchvision>=0.21.0,<1.0.0
 transformers>=4.47.0,<5.0.0
 huggingface-hub>=0.22.0,<1.0.0
-Pillow>=10.3.0,<12.0.0
+Pillow>=11.4.0,<13.0.0  # 12.x fixes 5 Pillow CVEs flagged by pip-audit
 numpy>=1.26.0,<3.0.0  # allow numpy-2 ABI (pyarrow>=18 / torch 2.6 need it)
 scipy>=1.13.0,<2.0.0
 scikit-learn>=1.4.0,<2.0.0
