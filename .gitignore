@@ -1,4 +1,6 @@
 .env
+.venv/
+venv/
 __pycache__/
 *.pyc
 *.pyo
@@ -6,6 +8,9 @@ __pycache__/
 .ruff_cache/
 mlruns/
 results/*/checkpoints/
+# HuggingFace Trainer intermediate checkpoints (optimizer/scheduler/rng state) —
+# bulky and not needed to serve; only the deployable best_model.pt is committed.
+results/**/checkpoint-*/
 results/**/*.onnx
 results/**/*.bin
 results/**/*.safetensors
