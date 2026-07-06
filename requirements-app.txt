@@ -1,12 +1,15 @@
 # Slim dependency set for the Hugging Face Space (inference only).
 # Training-only deps (mlflow, umap-learn, albumentations, opencv, notebook,
 # plotly, seaborn) are intentionally excluded to keep the Space build fast.
-torch>=2.2.0,<3.0.0
-torchvision>=0.17.0,<1.0.0
+# torch floor is 2.6: transformers>=4.53 blocks loading legacy .bin checkpoints
+# on torch<2.6 (CVE-2025-32434). The CLIP tab uses openai/clip-vit-base-patch32,
+# whose Hub weights are .bin only — so the Space itself needs torch>=2.6.
+torch>=2.6.0,<3.0.0
+torchvision>=0.21.0,<1.0.0
 transformers>=4.47.0,<5.0.0
 huggingface-hub>=0.22.0,<1.0.0
 Pillow>=10.3.0,<12.0.0
-numpy>=1.26.0,<2.0.0
+numpy>=1.26.0,<3.0.0  # allow numpy-2 ABI (pyarrow>=18 / torch 2.6 need it)
 scipy>=1.13.0,<2.0.0
 scikit-learn>=1.4.0,<2.0.0
 matplotlib>=3.8.0,<4.0.0

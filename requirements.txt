@@ -3,9 +3,12 @@
 # silently jump a major version and break the build.
 
 # ── Core ML ───────────────────────────────────────────────────────────────────
-torch>=2.2.0,<3.0.0
-torchvision>=0.17.0,<1.0.0
-torchaudio>=2.2.0,<3.0.0
+# torch floor is 2.6: transformers>=4.53 refuses to torch.load legacy .bin
+# checkpoints on torch<2.6 (CVE-2025-32434), which blocks models whose Hub
+# weights are not safetensors (e.g. google/efficientnet-b0, openai CLIP).
+torch>=2.6.0,<3.0.0
+torchvision>=0.21.0,<1.0.0
+torchaudio>=2.6.0,<3.0.0
 
 # ── HuggingFace ───────────────────────────────────────────────────────────────
 transformers>=4.47.0,<5.0.0
@@ -30,7 +33,9 @@ seaborn>=0.13.0,<1.0.0
 plotly>=5.20.0,<7.0.0
 
 # ── Scientific / ML utilities ─────────────────────────────────────────────────
-numpy>=1.26.0,<2.0.0
+# numpy 2.x required: pyarrow>=18 / torch 2.6 ship against the numpy-2 ABI, so
+# capping at <2 forces a downgrade that segfaults pyarrow on import.
+numpy>=1.26.0,<3.0.0
 scipy>=1.13.0,<2.0.0
 scikit-learn>=1.4.0,<2.0.0
 umap-learn>=0.5.6,<1.0.0
