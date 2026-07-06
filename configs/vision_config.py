@@ -113,6 +113,9 @@ class VisionTrainingConfig:
 
     # Hardware
     fp16: bool = True
+    # Parallel DataLoader workers keep the GPU fed. Capped low because each worker
+    # is a separate process that loads torch's CUDA DLLs into Windows commit
+    # memory; too many exhaust the page file (WinError 1455).
     num_workers: int = 4
 
     # MLflow

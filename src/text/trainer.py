@@ -138,6 +138,9 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
         label_smoothing_factor=cfg.label_smoothing,
         report_to="none",
         seed=cfg.seed,
+        dataloader_num_workers=4,
+        dataloader_persistent_workers=False,  # avoid train+eval worker stacking (Win page file)
+        dataloader_pin_memory=True,
     )
 
     with mlflow.start_run(run_name=cfg.model_key):

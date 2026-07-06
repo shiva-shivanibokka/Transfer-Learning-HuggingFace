@@ -169,7 +169,14 @@ def train_vision_model(
         label_smoothing_factor=cfg.label_smoothing,
         report_to="none",  # we handle MLflow ourselves
         seed=cfg.seed,
-        dataloader_num_workers=0,  # already handled in DataLoader
+        # Parallel data loading: the image augmentation pipeline is CPU-heavy, so
+        # with 0 workers the GPU starves (observed ~16% utilisation). A few worker
+        # processes lift it to 50-90%. persistent_workers is kept OFF so the train
+        # pool is released before eval spawns its own — otherwise both live at once
+        # and 2x the torch processes exhaust the Windows page file (WinError 1455).
+        dataloader_num_workers=cfg.num_workers,
+        dataloader_persistent_workers=False,
+        dataloader_pin_memory=True,
         remove_unused_columns=False,
     )
 
