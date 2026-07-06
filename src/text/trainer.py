@@ -139,7 +139,7 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
         report_to="none",
         seed=cfg.seed,
         dataloader_num_workers=4,
-        dataloader_persistent_workers=False,  # avoid train+eval worker stacking (Win page file)
+        dataloader_persistent_workers=True,  # fixed pool; avoids Windows worker leak
         dataloader_pin_memory=True,
     )
 

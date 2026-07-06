@@ -170,12 +170,13 @@ def train_vision_model(
         report_to="none",  # we handle MLflow ourselves
         seed=cfg.seed,
         # Parallel data loading: the image augmentation pipeline is CPU-heavy, so
-        # with 0 workers the GPU starves (observed ~16% utilisation). A few worker
-        # processes lift it to 50-90%. persistent_workers is kept OFF so the train
-        # pool is released before eval spawns its own — otherwise both live at once
-        # and 2x the torch processes exhaust the Windows page file (WinError 1455).
+        # with 0 workers the GPU starves (~16% util). persistent_workers=True keeps
+        # a FIXED pool alive across epochs — critical on Windows, where the
+        # non-persistent path respawns workers each epoch that aren't reaped
+        # promptly and accumulate (30+ processes over a long run), exhausting RAM.
+        # With num_workers=4 the peak is ~8 (train+eval), which is safe.
         dataloader_num_workers=cfg.num_workers,
-        dataloader_persistent_workers=False,
+        dataloader_persistent_workers=True,
         dataloader_pin_memory=True,
         remove_unused_columns=False,
     )
