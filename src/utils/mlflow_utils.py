@@ -5,12 +5,20 @@ Wraps run creation, param/metric logging, and artifact saving.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Optional
 
-import mlflow
-import mlflow.pytorch
-import numpy as np
+# MLflow >=3 moved the local filesystem tracking store into "maintenance mode"
+# and raises unless the caller opts in. This project intentionally uses the
+# simple ./mlruns file store (browsable via `mlflow ui`, gitignored) rather than
+# a database backend, so opt in before importing mlflow. Set the env var to
+# "false" to override and force the database-backend guidance instead.
+os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
+
+import mlflow  # noqa: E402
+import mlflow.pytorch  # noqa: E402
+import numpy as np  # noqa: E402
 
 
 def setup_mlflow(experiment_name: str, tracking_uri: str = "mlruns") -> None:
