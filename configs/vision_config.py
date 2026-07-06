@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 # ── Dataset ────────────────────────────────────────────────────────────────────
 
-DATASET_NAME = "blanchefort/eurosat_rgb"
+DATASET_NAME = "timm/eurosat-rgb"
 NUM_CLASSES = 10
 IMAGE_SIZE = 224
 EUROSAT_CLASSES = [

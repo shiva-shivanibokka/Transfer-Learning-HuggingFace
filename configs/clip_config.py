@@ -11,7 +11,7 @@ CLIP_MODEL_ID = "openai/clip-vit-base-patch32"
 
 # ── Dataset ────────────────────────────────────────────────────────────────────
 
-DATASET_NAME = "blanchefort/eurosat_rgb"  # same as Notebook 1 — intentional
+DATASET_NAME = "timm/eurosat-rgb"  # same as Notebook 1 — intentional
 NUM_CLASSES = 10
 EUROSAT_CLASSES = [
     "AnnualCrop",

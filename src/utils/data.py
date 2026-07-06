@@ -116,7 +116,7 @@ class EuroSATDataset(Dataset):
 
 
 def load_eurosat(
-    dataset_name: str = "blanchefort/eurosat_rgb",
+    dataset_name: str = "timm/eurosat-rgb",
     data_fraction: float = 1.0,
     image_size: int = 224,
     batch_size: int = 32,
@@ -173,10 +173,32 @@ def load_eurosat(
     return train_loader, val_loader, test_loader
 
 
+def _read_labels_fast(dataset) -> list[int]:
+    """Read integer labels without decoding images.
+
+    EuroSATDataset wraps a HuggingFace split whose ``label`` column can be read
+    directly — accessing a single column does NOT decode the image column. The
+    previous approach called ``dataset[i]`` for every item, which ran the full
+    resize/augment/ToTensor pipeline on all ~16k images just to read their
+    labels. Falls back to per-item access for plain datasets (e.g. test doubles)
+    that don't expose the underlying column.
+    """
+    hf_split = getattr(dataset, "data", None)
+    if hf_split is not None:
+        try:
+            return [int(x) for x in hf_split["label"]]
+        except (KeyError, TypeError):
+            pass
+    labels = getattr(dataset, "labels", None)
+    if labels is not None:
+        return [int(x) for x in labels]
+    return [int(dataset[i][1]) for i in range(len(dataset))]
+
+
 def _stratified_subset(dataset: EuroSATDataset, fraction: float, seed: int) -> Subset:
     """Return a stratified subset keeping `fraction` of each class."""
     rng = random.Random(seed)
-    labels = [dataset[i][1] for i in range(len(dataset))]
+    labels = _read_labels_fast(dataset)
     class_indices: dict[int, list[int]] = {}
     for idx, lbl in enumerate(labels):
         class_indices.setdefault(lbl, []).append(idx)

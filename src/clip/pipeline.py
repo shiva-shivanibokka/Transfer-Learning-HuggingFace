@@ -258,7 +258,7 @@ def run_clip_pipeline(cfg: CLIPConfig) -> dict:
 
     # Load EuroSAT
     log.info("Loading EuroSAT dataset...")
-    ds = load_dataset("blanchefort/eurosat_rgb")
+    ds = load_dataset("timm/eurosat-rgb")
 
     def get_images_and_labels(split):
         images, labels = [], []
