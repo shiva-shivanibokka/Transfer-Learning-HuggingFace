@@ -14,6 +14,8 @@ pinned: false
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.6%2Bcu124-ee4c2c)
 
+**🚀 [Live Demo (HF Space)](https://huggingface.co/spaces/shiva-1993/transfer-learning-project)** · **🤗 [Published models](https://huggingface.co/shiva-1993)** — the 7 fine-tuned models are on the Hub; the demo loads them at runtime.
+
 An empirical study of transfer learning efficiency across **4 vision architectures** (ResNet-50, EfficientNet-B0, ViT-Base, DINOv2-Base) and **2 text encoders** (RoBERTa, ModernBERT) on a niche satellite domain. Answers three questions no other project answers:
 
 1. Does DINOv2's self-supervised pretraining transfer better than supervised ViT to satellite imagery?
@@ -186,40 +188,38 @@ python app/gradio_app.py
 
 ## Deployment — Hugging Face Spaces (free CPU tier)
 
-The Gradio app deploys to HF Spaces using the included `Dockerfile`, which
-installs only `requirements-app.txt` (slim inference set) — not the full
-training stack — so the Space build stays fast on the free tier.
+The app is deployed as a **Docker Space** that loads the fine-tuned models
+**from the Hugging Face Hub at runtime** — so the Space itself ships no weights,
+stays tiny, and every model is independently published and reusable.
 
-1. Create a new Space → **SDK: Docker** → Hardware: **CPU basic (free)**.
-2. Add this YAML front matter to the top of the Space's `README.md` so HF
-   builds it as a Docker app on port 7860:
-   ```yaml
-   ---
-   title: Transfer Learning Demo
-   emoji: 🛰️
-   sdk: docker
-   app_port: 7860
-   ---
-   ```
-3. Push this repo to the Space remote (or connect the GitHub repo).
-4. Commit your trained artifacts under `results/` so the app serves real
-   weights (see **Populating results** below). Large `.pt` files use Git LFS.
+**Architecture:** train locally (GPU) → publish models to the Hub → the Space
+pulls them on demand.
 
-Free CPU Spaces sleep after 48h idle and cold-start on the next visit —
-expected on the free tier. The app fails loudly at startup if required env
-vars are missing rather than dying mid-request.
+```
+  scripts/run_grid_resumable.py   # train vision + text + CLIP
+  scripts/build_clip_index.py     # build the CLIP retrieval index
+  scripts/push_models_to_hub.py   # publish the 7 models to the Hub
+  → app/gradio_app.py loads shiva-1993/eurosat-* and emotion-* via from_pretrained
+```
 
-### Populating results
-The app loads checkpoints produced by the training scripts (paths are defined
-once in `src/utils/paths.py`, shared by trainers and the app):
-- `results/vision/<model>/full_finetune/frac1.00/best_model.pt`
-- `results/text/<model>/best_model.pt` and `temperature.json`
-- `results/clip/retrieval_index.pt` (built in notebook 03)
+### Published artifacts (Hugging Face Hub)
+- **Vision:** [`eurosat-resnet50`](https://huggingface.co/shiva-1993/eurosat-resnet50), [`eurosat-efficientnet-b0`](https://huggingface.co/shiva-1993/eurosat-efficientnet-b0), [`eurosat-vit-base`](https://huggingface.co/shiva-1993/eurosat-vit-base), [`eurosat-dinov2-base`](https://huggingface.co/shiva-1993/eurosat-dinov2-base)
+- **Text:** [`emotion-roberta`](https://huggingface.co/shiva-1993/emotion-roberta), [`emotion-modernbert`](https://huggingface.co/shiva-1993/emotion-modernbert), [`emotion-distilbert`](https://huggingface.co/shiva-1993/emotion-distilbert)
+- **CLIP index:** [`eurosat-clip-index`](https://huggingface.co/datasets/shiva-1993/eurosat-clip-index) (dataset)
 
-Train locally on a GPU, then commit these files for the Space to serve. Until
-they exist the app logs a clear warning and serves randomly-initialised
-weights, so an empty Space never crashes — but its predictions are meaningless
-until real checkpoints are committed.
+### Reproduce the deployment
+```bash
+huggingface-cli login                          # write token
+python scripts/push_models_to_hub.py --user <you>   # publish models
+python scripts/build_clip_index.py                  # build + upload index
+# Point the app at your account:  HF_HUB_USER=<you>
+# Push app/ src/ configs/ requirements-app.txt Dockerfile README.md to a Docker Space
+```
+
+The Dockerfile installs only `requirements-app.txt` (CPU torch, slim inference
+set). Free CPU Spaces sleep after 48h idle; the first request after a cold start
+downloads the model from the Hub (cached thereafter). A `/health` endpoint and
+per-request latency logging are built in.
 
 ---
 
