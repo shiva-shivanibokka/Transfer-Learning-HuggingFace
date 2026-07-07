@@ -31,3 +31,5 @@ lightning_logs/
 
 # Local-only planning/scratch docs — keep on disk, never commit
 docs/superpowers/
+AUDIT.md
+PLAN.md
