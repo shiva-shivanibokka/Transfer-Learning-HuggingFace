@@ -3,9 +3,9 @@
 import { Panel, SectionTitle } from "@/components/ui";
 
 const DEMOS = [
-  { icon: "🛰️", title: "Satellite classifier", body: "Show it an aerial photo and it tells you what's on the ground — forest, city, river, farmland. Four different AI 'brains' compete so you can see which reads satellite images best." },
-  { icon: "💬", title: "Emotion reader", body: "Type how you feel and it detects the emotion behind your words. It also demonstrates a trick called calibration that makes the AI's confidence more honest." },
-  { icon: "🔎", title: "Search by meaning", body: "Search satellite images using plain English, like a search engine — but it matches the meaning of your words, not filenames or tags." },
+  { icon: "🛰️", title: "Satellite classifier", body: "Show it an aerial photo and it tells you what's on the ground — forest, city, river, farmland. Four different AI 'brains' compete so you can see which reads satellite images best.", models: ["ResNet-50", "EfficientNet-B0", "ViT-Base", "DINOv2-Base"] },
+  { icon: "💬", title: "Emotion reader", body: "Type how you feel and it detects the emotion behind your words. It also demonstrates a trick called calibration that makes the AI's confidence more honest.", models: ["RoBERTa", "ModernBERT"] },
+  { icon: "🔎", title: "Search by meaning", body: "Search satellite images using plain English, like a search engine — but it matches the meaning of your words, not filenames or tags.", models: ["CLIP ViT-B/32"] },
 ];
 
 const STEPS = [
@@ -39,10 +39,16 @@ export default function AboutPanel() {
         <div className="mono text-[11px] tracking-widest uppercase mb-2" style={{ color: "var(--accent)" }}>The three demos</div>
         <div className="grid md:grid-cols-3 gap-3">
           {DEMOS.map((d) => (
-            <Panel key={d.title} className="!p-4">
+            <Panel key={d.title} className="!p-4 flex flex-col">
               <div className="text-2xl">{d.icon}</div>
               <div className="font-semibold mt-2">{d.title}</div>
               <p className="text-sm mt-1.5" style={{ color: "var(--muted)" }}>{d.body}</p>
+              <div className="mt-auto pt-3">
+                <div className="mono text-[10px] uppercase tracking-wider mb-1.5" style={{ color: "var(--faint)" }}>models used</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {d.models.map((m) => <span key={m} className="chip">{m}</span>)}
+                </div>
+              </div>
             </Panel>
           ))}
         </div>
