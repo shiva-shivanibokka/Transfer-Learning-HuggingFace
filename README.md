@@ -10,7 +10,7 @@ pinned: false
 
 # Transfer Learning & HuggingFace Model Hub Showcase
 
-[![CI](https://github.com/sbokk/Transfer-Learning-HuggingFace/actions/workflows/ci.yml/badge.svg)](https://github.com/sbokk/Transfer-Learning-HuggingFace/actions/workflows/ci.yml)
+[![CI](https://github.com/shiva-shivanibokka/Transfer-Learning-HuggingFace/actions/workflows/ci.yml/badge.svg)](https://github.com/shiva-shivanibokka/Transfer-Learning-HuggingFace/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.6%2Bcu124-ee4c2c)
 
@@ -127,7 +127,7 @@ Transfer-Learning-HuggingFace/
 ## Setup
 
 ```bash
-git clone https://github.com/sbokk/Transfer-Learning-HuggingFace
+git clone https://github.com/shiva-shivanibokka/Transfer-Learning-HuggingFace
 cd Transfer-Learning-HuggingFace
 pip install -r requirements.txt        # full training stack
 # or, for serving the demo only:
