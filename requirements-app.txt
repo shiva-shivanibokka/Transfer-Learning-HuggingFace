@@ -16,3 +16,8 @@ matplotlib>=3.8.0,<4.0.0
 pandas>=2.2.0,<3.0.0
 tabulate>=0.9.0,<1.0.0
 gradio>=4.36.0,<7.0.0
+# Explicit: the Dockerfile CMD runs the uvicorn binary and the app mounts a
+# FastAPI JSON API (app/api.py). Both are gradio deps, but pin them directly.
+fastapi>=0.110,<1.0
+uvicorn>=0.29,<1.0
+pydantic>=2.0,<3.0

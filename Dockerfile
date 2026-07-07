@@ -31,4 +31,6 @@ RUN pip install --no-cache-dir --user -r requirements-app.txt
 COPY --chown=user . .
 
 EXPOSE 7860
-CMD ["python", "app/gradio_app.py"]
+# Module entrypoint (not `python app/gradio_app.py`) so the JSON API and Gradio
+# handlers share one process/model cache. Shell form to read $PORT.
+CMD uvicorn app.serve:app --host 0.0.0.0 --port ${PORT:-7860}

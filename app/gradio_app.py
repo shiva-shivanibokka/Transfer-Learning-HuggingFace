@@ -762,31 +762,35 @@ def build_demo() -> gr.Blocks:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def build_app():
-    """Mount the Gradio demo under a FastAPI app that also exposes /health.
+    """Build the FastAPI app: JSON /api/* (for the Next.js frontend), the Gradio
+    demo at /, and a /health probe.
 
-    The demo lives at ``/``; ``/health`` is a lightweight liveness probe the
-    deployment platform (HF Spaces / Docker) can poll without loading a model.
+    - ``/api/*``  — JSON inference API (app.api.router), consumed by the custom frontend
+    - ``/``       — the Gradio demo (kept as a fallback / direct demo)
+    - ``/health`` — liveness probe (no model load)
+
+    CORS is open so the Vercel-hosted frontend can call the API from the browser.
+    Run via ``uvicorn app.serve:app`` — NOT ``python app/gradio_app.py`` (that
+    would import this module twice and split the model cache).
     """
     from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
 
-    fastapi_app = FastAPI(title="Transfer Learning Demo")
+    from app.api import router as api_router
+
+    fastapi_app = FastAPI(title="Transfer Learning API + Demo")
+    fastapi_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # public read-only inference API
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @fastapi_app.get("/health")
     def health() -> dict:
         return {"status": "ok"}
 
+    fastapi_app.include_router(api_router)
+
     demo = build_demo()
     return gr.mount_gradio_app(fastapi_app, demo.queue(), path="/")
-
-
-if __name__ == "__main__":
-    import os
-
-    import uvicorn
-
-    log.info("Starting server on 0.0.0.0:%s", os.getenv("PORT", "7860"))
-    uvicorn.run(
-        build_app(),
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", "7860")),
-    )
