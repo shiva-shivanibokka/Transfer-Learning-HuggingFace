@@ -9,6 +9,7 @@ Transfer Learning HuggingFace — Gradio Demo App
 """
 
 import json
+import os
 import sys
 import time
 
@@ -62,6 +63,21 @@ VISION_MODEL_IDS = {
 TEXT_MODEL_IDS = {
     "RoBERTa": "roberta",
     "ModernBERT": "modernbert",
+}
+
+# Fine-tuned models are served from the Hugging Face Hub (published by
+# scripts/push_models_to_hub.py), so the Space needs no local weight files.
+# Override the account with the HF_HUB_USER env var if you fork this.
+HUB_USER = os.getenv("HF_HUB_USER", "shiva-1993")
+VISION_HUB_IDS = {
+    "resnet50": f"{HUB_USER}/eurosat-resnet50",
+    "efficientnet_b0": f"{HUB_USER}/eurosat-efficientnet-b0",
+    "vit_base": f"{HUB_USER}/eurosat-vit-base",
+    "dinov2_base": f"{HUB_USER}/eurosat-dinov2-base",
+}
+TEXT_HUB_IDS = {
+    "roberta": f"{HUB_USER}/emotion-roberta",
+    "modernbert": f"{HUB_USER}/emotion-modernbert",
 }
 
 RESULTS_DIR = ROOT / "results"
@@ -121,42 +137,19 @@ def _load_vision_model(model_display_name: str):
         return _MODEL_CACHE[cache_key]
 
     model_key = VISION_MODEL_IDS[model_display_name]
+    hub_id = VISION_HUB_IDS[model_key]
 
     try:
-        from configs.vision_config import EUROSAT_CLASSES, NUM_CLASSES
-        from src.utils.paths import (
-            DEMO_VISION_FRACTION,
-            DEMO_VISION_STRATEGY,
-            vision_checkpoint_path,
-        )
-        from src.vision.model import build_model
+        from transformers import AutoModelForImageClassification
 
-        id2label = {i: c for i, c in enumerate(EUROSAT_CLASSES)}
-        label2id = {c: i for i, c in enumerate(EUROSAT_CLASSES)}
-        model, _ = build_model(
-            model_key=model_key,
-            num_classes=NUM_CLASSES,
-            id2label=id2label,
-            label2id=label2id,
-            strategy=DEMO_VISION_STRATEGY,
-        )
-
-        ckpt_path = vision_checkpoint_path(
-            model_key, DEMO_VISION_STRATEGY, DEMO_VISION_FRACTION
-        )
-        if ckpt_path.exists():
-            state = torch.load(ckpt_path, map_location=DEVICE, weights_only=True)
-            model.load_state_dict(state)
-            log.info("Loaded vision checkpoint %s", ckpt_path)
-        else:
-            log.warning("No checkpoint at %s; serving RANDOM weights", ckpt_path)
-
+        model = AutoModelForImageClassification.from_pretrained(hub_id)
         model.to(DEVICE).eval()
+        log.info("Loaded vision model from Hub: %s", hub_id)
         _MODEL_CACHE[cache_key] = model
         return model
 
     except Exception as exc:
-        raise gr.Error(f"Could not load vision model '{model_display_name}': {exc}")
+        raise gr.Error(f"Could not load vision model '{model_display_name}' from {hub_id}: {exc}")
 
 
 def _vision_transform(pil_image: Image.Image) -> torch.Tensor:
@@ -279,41 +272,31 @@ def _load_text_model(model_display_name: str):
         return _MODEL_CACHE[cache_key]
 
     model_key = TEXT_MODEL_IDS[model_display_name]
+    hub_id = TEXT_HUB_IDS[model_key]
 
     try:
+        from huggingface_hub import hf_hub_download
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-        from configs.text_config import TEXT_MODELS
-        from src.utils.paths import text_checkpoint_path, text_temperature_path
-
-        cfg = TEXT_MODELS[model_key]
-        tokenizer = AutoTokenizer.from_pretrained(cfg["hf_id"])
-        model = AutoModelForSequenceClassification.from_pretrained(
-            cfg["hf_id"], num_labels=len(EMOTION_CLASSES)
-        )
-
-        ckpt_path = text_checkpoint_path(model_key)
-        if ckpt_path.exists():
-            state = torch.load(ckpt_path, map_location=DEVICE, weights_only=True)
-            model.load_state_dict(state)
-            log.info("Loaded text checkpoint %s", ckpt_path)
-        else:
-            log.warning("No checkpoint at %s; serving RANDOM weights", ckpt_path)
-
+        tokenizer = AutoTokenizer.from_pretrained(hub_id)
+        model = AutoModelForSequenceClassification.from_pretrained(hub_id)
         model.to(DEVICE).eval()
+        log.info("Loaded text model from Hub: %s", hub_id)
 
-        # Load calibration temperature if available
+        # Calibration temperature ships in the model repo (temperature.json).
         temperature = 1.0
-        temp_path = text_temperature_path(model_key)
-        if temp_path.exists():
-            with open(temp_path) as f:
+        try:
+            temp_file = hf_hub_download(hub_id, "temperature.json")
+            with open(temp_file) as f:
                 temperature = json.load(f).get("temperature", 1.0)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("no temperature.json for %s (%s); using T=1.0", hub_id, exc)
 
         _MODEL_CACHE[cache_key] = (tokenizer, model, temperature)
         return _MODEL_CACHE[cache_key]
 
     except Exception as exc:
-        raise gr.Error(f"Could not load text model '{model_display_name}': {exc}")
+        raise gr.Error(f"Could not load text model '{model_display_name}' from {hub_id}: {exc}")
 
 
 def text_predict(text_input: str, model_name: str):
