@@ -14,7 +14,9 @@ pinned: false
 ![Python](https://img.shields.io/badge/python-3.12-blue)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.6%2Bcu124-ee4c2c)
 
-**🚀 [Live Demo (HF Space)](https://huggingface.co/spaces/shiva-1993/transfer-learning-project)** · **🤗 [Published models](https://huggingface.co/shiva-1993)** — the 7 fine-tuned models are on the Hub; the demo loads them at runtime.
+**🚀 [Live Demo](https://transfer-learning-hugging-face-git-main-shiv-a.vercel.app/)** (custom Next.js frontend on Vercel) · **[API + Gradio (HF Space)](https://huggingface.co/spaces/shiva-1993/transfer-learning-project)** · **🤗 [Models](https://huggingface.co/shiva-1993)**
+
+> Architecture: **Next.js/Vercel** frontend → **FastAPI** JSON API on a **Hugging Face Docker Space** → **7 fine-tuned models** loaded from the **HF Hub** at runtime. Frontend code lives in [`frontend/`](frontend/).
 
 An empirical study of transfer learning efficiency across **4 vision architectures** (ResNet-50, EfficientNet-B0, ViT-Base, DINOv2-Base) and **2 text encoders** (RoBERTa, ModernBERT) on a niche satellite domain. Answers three questions no other project answers:
 
