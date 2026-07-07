@@ -79,6 +79,8 @@ TEXT_HUB_IDS = {
     "roberta": f"{HUB_USER}/emotion-roberta",
     "modernbert": f"{HUB_USER}/emotion-modernbert",
 }
+# CLIP retrieval index (1000 EuroSAT embeddings) hosted as a Hub dataset repo.
+CLIP_INDEX_REPO = f"{HUB_USER}/eurosat-clip-index"
 
 RESULTS_DIR = ROOT / "results"
 VISION_DIR = RESULTS_DIR / "vision"
@@ -383,20 +385,34 @@ def _load_clip():
 
 
 def _load_clip_index():
-    """Load the cached EuroSAT retrieval index (1000 image embeddings)."""
+    """Load the cached EuroSAT retrieval index (1000 image embeddings).
+
+    Prefers a local file (dev); on the deployed Space it downloads the index
+    from the Hub dataset repo. weights_only=False because the index holds numpy
+    image arrays, not just tensors (torch>=2.6 defaults to weights_only=True).
+    """
     if "clip_index" in _MODEL_CACHE:
         return _MODEL_CACHE["clip_index"]
 
     from src.utils.paths import clip_index_path
 
-    index_path = clip_index_path()
-    if not index_path.exists():
-        raise gr.Error(
-            f"CLIP retrieval index not found at {index_path}. "
-            "Run notebook 03 first to build the index."
-        )
+    local = clip_index_path()
+    if local.exists():
+        path = str(local)
+    else:
+        from huggingface_hub import hf_hub_download
 
-    data = torch.load(index_path, map_location="cpu")
+        try:
+            path = hf_hub_download(
+                CLIP_INDEX_REPO, "retrieval_index.pt", repo_type="dataset"
+            )
+        except Exception as exc:
+            raise gr.Error(
+                f"CLIP retrieval index not found locally or on the Hub "
+                f"({CLIP_INDEX_REPO}): {exc}"
+            )
+
+    data = torch.load(path, map_location="cpu", weights_only=False)
     _MODEL_CACHE["clip_index"] = data
     return data
 
