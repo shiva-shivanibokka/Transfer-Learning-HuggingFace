@@ -153,7 +153,10 @@ def load_eurosat(
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
-        drop_last=True,
+        # Drop the ragged last batch only when there's more than one batch's
+        # worth of data; otherwise a tiny-fraction subset would yield an empty
+        # loader.
+        drop_last=len(train_ds) > batch_size,
     )
     val_loader = DataLoader(
         val_ds,

@@ -294,9 +294,11 @@ def compute_attention_rollout(
         # Average over heads: (batch, seq_len, seq_len) → (seq_len, seq_len)
         attn = attention[0].mean(dim=0)
 
-        # Discard lowest attention weights (set to 0 before normalising)
+        # Discard lowest attention weights (set to 0 before normalising).
+        # kthvalue is 1-indexed, so k must be >= 1 even for tiny inputs.
         flat = attn.view(-1)
-        threshold = flat.kthvalue(int(discard_ratio * flat.numel())).values
+        k = max(1, int(discard_ratio * flat.numel()))
+        threshold = flat.kthvalue(k).values
         attn = attn * (attn >= threshold).float()
 
         # Add residual and re-normalise rows

@@ -47,15 +47,41 @@ export type ResultsPayload = {
   findings: string[];
 };
 
-async function post<T>(path: string, body: unknown, timeoutMs = 120000): Promise<T> {
+// Cold free HF Spaces can take a while to wake; the initial GET probes need a
+// generous timeout so the first load doesn't falsely report a "waking" error.
+const BOOTSTRAP_TIMEOUT = 90000;
+
+// Combine an optional caller-supplied AbortSignal with an internal timeout so a
+// request is aborted either on timeout or when the caller (e.g. an unmounting
+// panel / superseding request) cancels it.
+function linkSignal(timeoutMs: number, external?: AbortSignal) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const onAbort = () => ctrl.abort();
+  if (external) {
+    if (external.aborted) ctrl.abort();
+    else external.addEventListener("abort", onAbort, { once: true });
+  }
+  const cleanup = () => {
+    clearTimeout(t);
+    external?.removeEventListener("abort", onAbort);
+  };
+  return { signal: ctrl.signal, cleanup };
+}
+
+async function post<T>(
+  path: string,
+  body: unknown,
+  opts: { timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<T> {
+  const { timeoutMs = 120000, signal: external } = opts;
+  const { signal, cleanup } = linkSignal(timeoutMs, external);
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: ctrl.signal,
+      signal,
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => res.statusText);
@@ -63,30 +89,31 @@ async function post<T>(path: string, body: unknown, timeoutMs = 120000): Promise
     }
     return (await res.json()) as T;
   } finally {
-    clearTimeout(t);
+    cleanup();
   }
 }
 
 async function get<T>(path: string, timeoutMs = 30000): Promise<T> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  const { signal, cleanup } = linkSignal(timeoutMs);
   try {
-    const res = await fetch(`${API_BASE}${path}`, { signal: ctrl.signal });
+    const res = await fetch(`${API_BASE}${path}`, { signal });
     if (!res.ok) throw new Error(`${res.status}`);
     return (await res.json()) as T;
   } finally {
-    clearTimeout(t);
+    cleanup();
   }
 }
 
 export const api = {
-  models: () => get<ModelsPayload>("/api/models"),
-  results: () => get<ResultsPayload>("/api/results"),
-  health: () => get<{ status: string }>("/health", 8000),
-  vision: (image: string, model: string) =>
-    post<VisionResult>("/api/vision", { image, model }),
-  text: (text: string, model: string) =>
-    post<TextResult>("/api/text", { text, model }),
-  clip: (query: string, k: number) =>
-    post<ClipResult>("/api/clip-search", { query, k }),
+  // Bootstrap calls tolerate a cold Space waking from sleep.
+  models: () => get<ModelsPayload>("/api/models", BOOTSTRAP_TIMEOUT),
+  results: () => get<ResultsPayload>("/api/results", BOOTSTRAP_TIMEOUT),
+  // Lightweight cold-start probe used to wake the Space before the heavier calls.
+  health: () => get<{ status: string }>("/health", BOOTSTRAP_TIMEOUT),
+  vision: (image: string, model: string, signal?: AbortSignal) =>
+    post<VisionResult>("/api/vision", { image, model }, { signal }),
+  text: (text: string, model: string, signal?: AbortSignal) =>
+    post<TextResult>("/api/text", { text, model }, { signal }),
+  clip: (query: string, k: number, signal?: AbortSignal) =>
+    post<ClipResult>("/api/clip-search", { query, k }, { signal }),
 };

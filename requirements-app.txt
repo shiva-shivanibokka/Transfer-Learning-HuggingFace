@@ -21,3 +21,5 @@ gradio>=4.36.0,<7.0.0
 fastapi>=0.110,<1.0
 uvicorn>=0.29,<1.0
 pydantic>=2.0,<3.0
+slowapi>=0.1.9,<1.0  # per-client-IP rate limiting on the POST inference endpoints
+safetensors>=0.4.0,<1.0  # CLIP retrieval index is loaded as safetensors (no pickle)

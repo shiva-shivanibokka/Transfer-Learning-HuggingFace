@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import torch.nn as nn
 from transformers import (
+    AutoConfig,
     AutoFeatureExtractor,
     AutoImageProcessor,
     AutoModelForImageClassification,
@@ -53,19 +54,69 @@ def build_model(
     except Exception:
         processor = AutoFeatureExtractor.from_pretrained(hf_id)
 
-    # Load model with a fresh classification head
-    model = AutoModelForImageClassification.from_pretrained(
+    # Build an AutoConfig up front so we can (a) wire the requested dropout into
+    # the backbone head and (b) support random-init when pretrained=False.
+    config = AutoConfig.from_pretrained(
         hf_id,
         num_labels=num_classes,
         id2label=id2label,
         label2id=label2id,
-        ignore_mismatched_sizes=True,  # allows replacing the head
     )
+    _apply_dropout(config, dropout)
+
+    # Load model with a fresh classification head.
+    # attn_implementation="eager" makes ViT/DINOv2 expose attention weights so
+    # the attention-rollout visualisation can capture them. Some backbones /
+    # config classes reject the kwarg, so fall back to the default path.
+    if pretrained:
+        try:
+            model = AutoModelForImageClassification.from_pretrained(
+                hf_id,
+                config=config,
+                ignore_mismatched_sizes=True,  # allows replacing the head
+                attn_implementation="eager",
+            )
+        except (TypeError, ValueError):
+            model = AutoModelForImageClassification.from_pretrained(
+                hf_id,
+                config=config,
+                ignore_mismatched_sizes=True,  # allows replacing the head
+            )
+    else:
+        # Random init from config only — no ImageNet weights loaded.
+        try:
+            model = AutoModelForImageClassification.from_config(
+                config, attn_implementation="eager"
+            )
+        except (TypeError, ValueError):
+            model = AutoModelForImageClassification.from_config(config)
 
     # Apply freezing strategy
     _apply_strategy(model, model_key, strategy_cfg)
 
     return model, processor
+
+
+def _apply_dropout(config, dropout: float) -> None:
+    """
+    Wire the requested dropout rate into whichever dropout attributes the
+    backbone config exposes. Different families name these differently
+    (ViT/DINOv2 use ``hidden_dropout_prob``; classifier heads often use
+    ``classifier_dropout`` / ``classifier_dropout_prob``). Any attribute the
+    config doesn't support is skipped gracefully.
+    """
+    if dropout is None:
+        return
+    for attr in (
+        "hidden_dropout_prob",
+        "classifier_dropout",
+        "classifier_dropout_prob",
+    ):
+        if hasattr(config, attr):
+            try:
+                setattr(config, attr, dropout)
+            except (AttributeError, ValueError):
+                pass
 
 
 def _apply_strategy(model: nn.Module, model_key: str, strategy_cfg: dict) -> None:

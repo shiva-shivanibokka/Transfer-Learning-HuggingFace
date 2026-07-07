@@ -46,7 +46,7 @@ def main():
         cfg = TextTrainingConfig(
             model_key=model_key,
             push_to_hub=args.push_to_hub,
-            hub_model_id=args.hub_id or f"eurosat-emotion-{model_key}",
+            hub_model_id=args.hub_id or f"emotion-{model_key}",
         )
         result = train_text_model(cfg)
         all_results.append(result)

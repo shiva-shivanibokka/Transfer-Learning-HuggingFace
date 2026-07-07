@@ -11,6 +11,7 @@ Transfer Learning HuggingFace — Gradio Demo App
 import json
 import os
 import sys
+import threading
 import time
 
 import matplotlib
@@ -30,28 +31,23 @@ from PIL import Image
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
+# Class label ORDER is the source of truth in results_data.py (maps to
+# prediction indices); import here so both layers agree.
+from app.results_data import EMOTION_CLASSES, EUROSAT_CLASSES  # noqa: E402,F401
 from src.utils.logging_utils import get_logger  # noqa: E402
 
 log = get_logger("app")
 
 # ── lazy model cache ──────────────────────────────────────────────────────────
 _MODEL_CACHE: dict = {}
+# Guards check-then-set population of _MODEL_CACHE so concurrent cold requests
+# don't double-load a model (double-checked locking).
+_MODEL_CACHE_LOCK = threading.Lock()
 
 # ── constants ─────────────────────────────────────────────────────────────────
-EUROSAT_CLASSES = [
-    "AnnualCrop",
-    "Forest",
-    "HerbaceousVegetation",
-    "Highway",
-    "Industrial",
-    "Pasture",
-    "PermanentCrop",
-    "Residential",
-    "River",
-    "SeaLake",
-]
-
-EMOTION_CLASSES = ["sadness", "joy", "love", "anger", "fear", "surprise"]
+# Max results for CLIP retrieval — single source shared with app/api.py's
+# /clip-search clamp and the Gradio slider max so they can't drift apart.
+MAX_CLIP_K = 10
 
 VISION_MODEL_IDS = {
     "EfficientNet-B0": "efficientnet_b0",
@@ -141,17 +137,28 @@ def _load_vision_model(model_display_name: str):
     model_key = VISION_MODEL_IDS[model_display_name]
     hub_id = VISION_HUB_IDS[model_key]
 
-    try:
-        from transformers import AutoModelForImageClassification
+    with _MODEL_CACHE_LOCK:
+        if cache_key in _MODEL_CACHE:  # another thread may have loaded it first
+            return _MODEL_CACHE[cache_key]
+        try:
+            from transformers import AutoModelForImageClassification
 
-        model = AutoModelForImageClassification.from_pretrained(hub_id)
-        model.to(DEVICE).eval()
-        log.info("Loaded vision model from Hub: %s", hub_id)
-        _MODEL_CACHE[cache_key] = model
-        return model
+            # Load with eager attention so ViT/DINOv2 expose per-layer
+            # attentions for the rollout overlay. Some configs reject the
+            # kwarg — fall back to a plain load in that case.
+            try:
+                model = AutoModelForImageClassification.from_pretrained(
+                    hub_id, attn_implementation="eager"
+                )
+            except (TypeError, ValueError):
+                model = AutoModelForImageClassification.from_pretrained(hub_id)
+            model.to(DEVICE).eval()
+            log.info("Loaded vision model from Hub: %s", hub_id)
+            _MODEL_CACHE[cache_key] = model
+            return model
 
-    except Exception as exc:
-        raise gr.Error(f"Could not load vision model '{model_display_name}' from {hub_id}: {exc}")
+        except Exception as exc:
+            raise gr.Error(f"Could not load vision model '{model_display_name}' from {hub_id}: {exc}")
 
 
 def _vision_transform(pil_image: Image.Image) -> torch.Tensor:
@@ -219,17 +226,12 @@ def vision_predict(pil_image: Image.Image, model_name: str):
     model = _load_vision_model(model_name)
     tensor = _vision_transform(pil_image)
 
-    # Latency benchmark (3 warm-up + 20 timed runs)
+    # Single timed forward pass for latency. Static per-model benchmark
+    # latency (median over many runs) lives in results_data.py for display.
     with torch.no_grad():
-        for _ in range(3):
-            _ = model(tensor)
-    times = []
-    with torch.no_grad():
-        for _ in range(20):
-            t0 = time.perf_counter()
-            output = model(tensor)
-            times.append((time.perf_counter() - t0) * 1000)
-    latency_ms = float(np.median(times))
+        t0 = time.perf_counter()
+        output = model(tensor)
+        latency_ms = (time.perf_counter() - t0) * 1000
 
     # Logits → probabilities
     logits = output.logits if hasattr(output, "logits") else output
@@ -240,7 +242,7 @@ def vision_predict(pil_image: Image.Image, model_name: str):
     conf = probs[pred_idx]
 
     label_str = f"Predicted: **{pred_cls}** ({conf * 100:.1f}% confidence)"
-    latency_str = f"Inference latency: {latency_ms:.1f} ms (median over 20 runs, {DEVICE.upper()})"
+    latency_str = f"Inference latency: {latency_ms:.1f} ms (single run, {DEVICE.upper()})"
 
     conf_chart = _bar_chart(
         labels=EUROSAT_CLASSES,
@@ -276,29 +278,32 @@ def _load_text_model(model_display_name: str):
     model_key = TEXT_MODEL_IDS[model_display_name]
     hub_id = TEXT_HUB_IDS[model_key]
 
-    try:
-        from huggingface_hub import hf_hub_download
-        from transformers import AutoModelForSequenceClassification, AutoTokenizer
-
-        tokenizer = AutoTokenizer.from_pretrained(hub_id)
-        model = AutoModelForSequenceClassification.from_pretrained(hub_id)
-        model.to(DEVICE).eval()
-        log.info("Loaded text model from Hub: %s", hub_id)
-
-        # Calibration temperature ships in the model repo (temperature.json).
-        temperature = 1.0
+    with _MODEL_CACHE_LOCK:
+        if cache_key in _MODEL_CACHE:  # another thread may have loaded it first
+            return _MODEL_CACHE[cache_key]
         try:
-            temp_file = hf_hub_download(hub_id, "temperature.json")
-            with open(temp_file) as f:
-                temperature = json.load(f).get("temperature", 1.0)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("no temperature.json for %s (%s); using T=1.0", hub_id, exc)
+            from huggingface_hub import hf_hub_download
+            from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-        _MODEL_CACHE[cache_key] = (tokenizer, model, temperature)
-        return _MODEL_CACHE[cache_key]
+            tokenizer = AutoTokenizer.from_pretrained(hub_id)
+            model = AutoModelForSequenceClassification.from_pretrained(hub_id)
+            model.to(DEVICE).eval()
+            log.info("Loaded text model from Hub: %s", hub_id)
 
-    except Exception as exc:
-        raise gr.Error(f"Could not load text model '{model_display_name}' from {hub_id}: {exc}")
+            # Calibration temperature ships in the model repo (temperature.json).
+            temperature = 1.0
+            try:
+                temp_file = hf_hub_download(hub_id, "temperature.json")
+                with open(temp_file) as f:
+                    temperature = json.load(f).get("temperature", 1.0)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("no temperature.json for %s (%s); using T=1.0", hub_id, exc)
+
+            _MODEL_CACHE[cache_key] = (tokenizer, model, temperature)
+            return _MODEL_CACHE[cache_key]
+
+        except Exception as exc:
+            raise gr.Error(f"Could not load text model '{model_display_name}' from {hub_id}: {exc}")
 
 
 def text_predict(text_input: str, model_name: str):
@@ -369,52 +374,63 @@ def _load_clip():
     if "clip" in _MODEL_CACHE:
         return _MODEL_CACHE["clip"]
 
-    try:
-        from transformers import CLIPModel, CLIPProcessor
+    with _MODEL_CACHE_LOCK:
+        if "clip" in _MODEL_CACHE:  # another thread may have loaded it first
+            return _MODEL_CACHE["clip"]
+        try:
+            from transformers import CLIPModel, CLIPProcessor
 
-        from configs.clip_config import CLIP_MODEL_ID
+            from configs.clip_config import CLIP_MODEL_ID
 
-        log.info("Loading CLIP model %s", CLIP_MODEL_ID)
-        clip_model = CLIPModel.from_pretrained(CLIP_MODEL_ID).to(DEVICE)
-        clip_processor = CLIPProcessor.from_pretrained(CLIP_MODEL_ID)
-        clip_model.eval()
-        _MODEL_CACHE["clip"] = (clip_model, clip_processor)
-        return _MODEL_CACHE["clip"]
-    except Exception as exc:
-        raise gr.Error(f"Could not load CLIP: {exc}")
+            log.info("Loading CLIP model %s", CLIP_MODEL_ID)
+            clip_model = CLIPModel.from_pretrained(CLIP_MODEL_ID).to(DEVICE)
+            clip_processor = CLIPProcessor.from_pretrained(CLIP_MODEL_ID)
+            clip_model.eval()
+            _MODEL_CACHE["clip"] = (clip_model, clip_processor)
+            return _MODEL_CACHE["clip"]
+        except Exception as exc:
+            raise gr.Error(f"Could not load CLIP: {exc}")
 
 
 def _load_clip_index():
     """Load the cached EuroSAT retrieval index (1000 image embeddings).
 
     Prefers a local file (dev); on the deployed Space it downloads the index
-    from the Hub dataset repo. weights_only=False because the index holds numpy
-    image arrays, not just tensors (torch>=2.6 defaults to weights_only=True).
+    from the Hub dataset repo. The index is a safetensors file holding only
+    plain tensors ({features, labels, images:uint8[N,64,64,3]}), so it loads
+    with no pickle / arbitrary-code-execution surface.
     """
     if "clip_index" in _MODEL_CACHE:
         return _MODEL_CACHE["clip_index"]
 
-    from src.utils.paths import clip_index_path
+    with _MODEL_CACHE_LOCK:
+        if "clip_index" in _MODEL_CACHE:  # another thread may have loaded it first
+            return _MODEL_CACHE["clip_index"]
 
-    local = clip_index_path()
-    if local.exists():
-        path = str(local)
-    else:
-        from huggingface_hub import hf_hub_download
+        from safetensors.torch import load_file
 
-        try:
-            path = hf_hub_download(
-                CLIP_INDEX_REPO, "retrieval_index.pt", repo_type="dataset"
-            )
-        except Exception as exc:
-            raise gr.Error(
-                f"CLIP retrieval index not found locally or on the Hub "
-                f"({CLIP_INDEX_REPO}): {exc}"
-            )
+        from src.utils.paths import clip_index_path
 
-    data = torch.load(path, map_location="cpu", weights_only=False)
-    _MODEL_CACHE["clip_index"] = data
-    return data
+        index_name = clip_index_path().name  # retrieval_index.safetensors
+        local = clip_index_path()
+        if local.exists():
+            path = str(local)
+        else:
+            from huggingface_hub import hf_hub_download
+
+            try:
+                path = hf_hub_download(
+                    CLIP_INDEX_REPO, index_name, repo_type="dataset"
+                )
+            except Exception as exc:
+                raise gr.Error(
+                    f"CLIP retrieval index not found locally or on the Hub "
+                    f"({CLIP_INDEX_REPO}): {exc}"
+                )
+
+        data = load_file(path)  # dict[str, Tensor] — safe, no pickle
+        _MODEL_CACHE["clip_index"] = data
+        return data
 
 
 def clip_search(query: str, k: int):
@@ -699,7 +715,7 @@ def build_demo() -> gr.Blocks:
                     )
                     clip_k_slider = gr.Slider(
                         minimum=1,
-                        maximum=10,
+                        maximum=MAX_CLIP_K,
                         value=5,
                         step=1,
                         label="Number of results (k)",
@@ -775,7 +791,11 @@ def build_app():
     """
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.middleware import SlowAPIMiddleware
 
+    from app.api import limiter
     from app.api import router as api_router
 
     fastapi_app = FastAPI(title="Transfer Learning API + Demo")
@@ -785,6 +805,14 @@ def build_app():
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Per-client-IP rate limiting on the POST inference endpoints (20/minute →
+    # 429). The limiter is defined in app/api.py and its @limiter.limit(...)
+    # decorators only take effect once it is registered on this app + the
+    # SlowAPIMiddleware is installed.
+    fastapi_app.state.limiter = limiter
+    fastapi_app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    fastapi_app.add_middleware(SlowAPIMiddleware)
 
     @fastapi_app.get("/health")
     def health() -> dict:

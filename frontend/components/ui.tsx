@@ -8,9 +8,9 @@ export function Panel({ children, className = "" }: { children: React.ReactNode;
 
 export function Help({ text }: { text: string }) {
   return (
-    <span className="help" aria-label={text} role="img">
-      <span className="dot mono">?</span>
-      <span className="tip">{text}</span>
+    <span className="help">
+      <span className="dot mono" tabIndex={0} role="button" aria-label={text}>?</span>
+      <span className="tip" role="tooltip">{text}</span>
     </span>
   );
 }

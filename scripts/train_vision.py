@@ -40,11 +40,17 @@ from src.vision.trainer import train_vision_model
 def run_single(
     model_key: str, strategy: str, fraction: float, push_to_hub: bool = False
 ) -> dict:
+    # Without a hub_model_id the trainer's `if push_to_hub and hub_model_id`
+    # guard is always False, so --push-to-hub would silently no-op. Default to
+    # the same repo naming push_models_to_hub.py uses (VISION_REPO:
+    # eurosat-<model>, underscores -> dashes) so the two stay in sync.
+    hub_model_id = f"eurosat-{model_key.replace('_', '-')}" if push_to_hub else ""
     cfg = VisionTrainingConfig(
         model_key=model_key,
         strategy=strategy,
         data_fraction=fraction,
         push_to_hub=push_to_hub,
+        hub_model_id=hub_model_id,
     )
     return train_vision_model(cfg)
 
@@ -116,6 +122,22 @@ def main():
     )
     parser.add_argument("--push-to-hub", action="store_true")
     args = parser.parse_args()
+
+    # Validate fraction range whenever supplied.
+    if args.fraction is not None and not (0.0 < args.fraction <= 1.0):
+        parser.error("--fraction must be in the range (0, 1.0]")
+
+    # A single-run request needs ALL THREE of --model/--strategy/--fraction.
+    # Supplying only some of them previously fell through to the FULL grid,
+    # silently ignoring the flags the user passed.
+    single_run_args = (args.model, args.strategy, args.fraction)
+    if any(a is not None for a in single_run_args) and not all(
+        a is not None for a in single_run_args
+    ):
+        parser.error(
+            "a single run requires all of --model, --strategy and --fraction "
+            "(supply all three, or none to run the full grid)"
+        )
 
     if args.model and args.strategy and args.fraction is not None:
         result = run_single(args.model, args.strategy, args.fraction, args.push_to_hub)

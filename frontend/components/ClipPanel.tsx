@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type ClipHit } from "@/lib/api";
 import { ErrorNote, Panel, SectionTitle, Spinner } from "@/components/ui";
 
@@ -12,19 +12,30 @@ export default function ClipPanel() {
   const [hits, setHits] = useState<ClipHit[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const reqIdRef = useRef(0);
+  const ctrlRef = useRef<AbortController | null>(null);
+
+  // Abort any in-flight search when the panel unmounts (e.g. tab switch).
+  useEffect(() => () => ctrlRef.current?.abort(), []);
 
   async function search(q?: string) {
     const qq = (q ?? query).trim();
     if (!qq) return;
     setQuery(qq);
+    const reqId = ++reqIdRef.current;   // monotonic guard against stale responses
+    ctrlRef.current?.abort();           // cancel any overlapping search
+    const ctrl = new AbortController();
+    ctrlRef.current = ctrl;
     setLoading(true); setErr(null); setHits(null);
     try {
-      const r = await api.clip(qq, k);
+      const r = await api.clip(qq, k, ctrl.signal);
+      if (reqId !== reqIdRef.current) return; // superseded — discard
       setHits(r.results);
     } catch (e) {
+      if (reqId !== reqIdRef.current || ctrl.signal.aborted) return;
       setErr(e instanceof Error ? e.message : "request failed");
     } finally {
-      setLoading(false);
+      if (reqId === reqIdRef.current) setLoading(false);
     }
   }
 
@@ -50,7 +61,7 @@ export default function ClipPanel() {
 
       <div className="flex flex-wrap gap-1.5 mt-3">
         {EXAMPLES.map((ex) => (
-          <button key={ex} onClick={() => search(ex)} className="chip">{ex}</button>
+          <button key={ex} onClick={() => search(ex)} disabled={loading} className="chip">{ex}</button>
         ))}
       </div>
 

@@ -23,7 +23,7 @@ from datasets import load_dataset
 from PIL import Image
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import normalize
-from transformers import CLIPModel, CLIPProcessor
+from transformers import CLIPModel, CLIPProcessor, set_seed
 
 from configs.clip_config import (
     CLASS_DESCRIPTIONS,
@@ -219,7 +219,9 @@ def retrieve_images(
     Returns list of {rank, label, similarity_score, image_index}.
     """
     query_feats = extract_text_features(model, processor, [query_text], device)
-    sims = (image_features @ query_feats.T).squeeze()
+    # (N, D) @ (D, 1) -> (N, 1); squeeze only the singleton query axis so a
+    # single-image gallery (N=1) still yields a 1-D array, not a 0-D scalar.
+    sims = (image_features @ query_feats.T).squeeze(axis=1)
     top_indices = np.argsort(sims)[::-1][:top_k]
 
     return [
@@ -247,6 +249,9 @@ def run_clip_pipeline(cfg: CLIPConfig) -> dict:
     6. Return all results for notebook plotting
     """
     from src.utils.mlflow_utils import setup_mlflow
+
+    # Global seed for reproducibility (seeds torch, numpy, and random).
+    set_seed(cfg.seed)
 
     setup_mlflow(cfg.mlflow_experiment, cfg.mlflow_tracking_uri)
 

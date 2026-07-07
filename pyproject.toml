@@ -1,3 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transfer-learning-huggingface"
+version = "0.1.0"
+description = "Transfer learning benchmarks (vision, text, CLIP) on HuggingFace."
+requires-python = ">=3.10"
+# Runtime deps are pinned per surface in requirements-*.txt (ci / app / train).
+# This table exists so `pip install -e .` makes the `src` package importable
+# without relying on the tests/conftest.py sys.path shim.
+
+[tool.setuptools.packages.find]
+# Only the reusable library layer is a real package; app/, configs/, scripts/
+# stay importable via the repo-root sys.path approach in tests/conftest.py.
+include = ["src*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
@@ -24,3 +42,9 @@ extend-exclude = ["notebooks", "*.ipynb"]
 # E/F = pyflakes+pycodestyle, I = isort. Pragmatic set for a research repo.
 select = ["E", "F", "I"]
 ignore = ["E501"]  # line length is formatter's job, not a blocking lint
+
+[tool.mypy]
+# Advisory only (CI runs `mypy src || true`). ML libs ship incomplete stubs, so
+# ignore missing imports to keep the signal on our own code, not third-party gaps.
+python_version = "3.12"
+ignore_missing_imports = true

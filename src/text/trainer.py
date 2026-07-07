@@ -12,7 +12,6 @@ from pathlib import Path
 import mlflow
 import numpy as np
 import torch
-import torch.nn as nn
 from datasets import load_dataset
 from transformers import (
     AutoModelForSequenceClassification,
@@ -138,7 +137,7 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
         label_smoothing_factor=cfg.label_smoothing,
         report_to="none",
         seed=cfg.seed,
-        dataloader_num_workers=4,
+        dataloader_num_workers=getattr(cfg, "num_workers", 4),
         dataloader_persistent_workers=True,  # fixed pool; avoids Windows worker leak
         dataloader_pin_memory=True,
     )
@@ -195,25 +194,18 @@ def train_text_model(cfg: TextTrainingConfig) -> dict:
         val_logits = trainer.predict(tokenised["validation"]).predictions
         val_labels = tokenised["validation"]["labels"]
 
-        # Wrap model for temperature scaling
+        # Wrap model for temperature scaling. model.cpu() also moves the model
+        # to CPU for the checkpoint save below.
         scaler = TemperatureScaler(model.cpu())
-        # Fit using LBFGS on val logits directly (faster than full forward pass)
-        optimizer = torch.optim.LBFGS(
-            [scaler.temperature], lr=cfg.temperature_lr, max_iter=100
-        )
+        # Fit using the shared logits-based LBFGS loop (same setup as before:
+        # lr=cfg.temperature_lr, LBFGS with max_iter=100). A single LBFGS step
+        # with max_iter=100 fully converges the single temperature scalar, so
+        # this reproduces the previous inline loop numerically.
         val_logits_t = torch.tensor(val_logits, dtype=torch.float32)
         val_labels_t = torch.tensor(val_labels)
-        criterion = nn.CrossEntropyLoss()
-
-        def closure():
-            optimizer.zero_grad()
-            scaled = val_logits_t / scaler.temperature.clamp(min=0.05)
-            loss = criterion(scaled, val_labels_t)
-            loss.backward()
-            return loss
-
-        for _ in range(cfg.temperature_epochs):
-            optimizer.step(closure)
+        scaler.fit_from_logits(
+            val_logits_t, val_labels_t, lr=cfg.temperature_lr, max_iter=100
+        )
 
         T = max(float(scaler.T), 0.05)  # guard: avoid div-by-~0 at serve time
         mlflow.log_metric("temperature", T)

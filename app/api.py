@@ -13,9 +13,11 @@ import time
 
 import numpy as np
 import torch
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from PIL import Image
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app import gradio_app as G
 from app import results_data as R
@@ -24,15 +26,40 @@ from src.utils.logging_utils import get_logger
 log = get_logger("api")
 router = APIRouter(prefix="/api")
 
+# Per-client-IP rate limiter; registered on the FastAPI app in build_app().
+limiter = Limiter(key_func=get_remote_address)
+
+# ── validation limits ─────────────────────────────────────────────────────────
+MAX_B64_LEN = 4_000_000        # raw base64 string length cap → 413 if exceeded
+MAX_IMAGE_DIM = 4096           # px on either side → 413 if exceeded
+MAX_TEXT_LEN = 2000            # chars → 400 if exceeded
+# Cap decoded pixel count to defuse decompression bombs before .convert() runs.
+Image.MAX_IMAGE_PIXELS = 8_000_000
+
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 def _decode_image(b64: str) -> Image.Image:
+    if not b64 or not b64.strip():
+        raise HTTPException(400, "empty image")
+    if len(b64) > MAX_B64_LEN:
+        raise HTTPException(413, "image too large")
     if "," in b64[:64]:  # strip data URL prefix if present
         b64 = b64.split(",", 1)[1]
     try:
-        return Image.open(io.BytesIO(base64.b64decode(b64))).convert("RGB")
-    except Exception as exc:
-        raise HTTPException(400, f"invalid image: {exc}")
+        raw = base64.b64decode(b64, validate=True)
+    except Exception:
+        log.exception("base64 decode failed")
+        raise HTTPException(400, "malformed image")
+    if not raw:
+        raise HTTPException(400, "empty image")
+    try:
+        img = Image.open(io.BytesIO(raw)).convert("RGB")
+    except Exception:
+        log.exception("image decode failed")
+        raise HTTPException(400, "invalid image")
+    if img.width > MAX_IMAGE_DIM or img.height > MAX_IMAGE_DIM:
+        raise HTTPException(413, "image dimensions too large")
+    return img
 
 
 def _png_b64(img: Image.Image) -> str:
@@ -73,25 +100,25 @@ def results():
 
 
 @router.post("/vision")
-def vision(req: VisionReq):
+@limiter.limit("20/minute")
+def vision(request: Request, req: VisionReq):
+    # Validate everything BEFORE loading any model.
     if req.model not in G.VISION_MODEL_IDS:
-        raise HTTPException(400, f"unknown model {req.model}")
+        raise HTTPException(400, "unknown model")
     pil = _decode_image(req.image)
     try:
         model = G._load_vision_model(req.model)
-    except Exception as exc:
-        raise HTTPException(502, f"model load failed: {exc}")
+    except Exception:
+        log.exception("vision model load failed for %s", req.model)
+        raise HTTPException(502, "model load failed")
     tensor = G._vision_transform(pil)
 
+    # Single timed forward pass for latency (static benchmark latency lives in
+    # results_data.py for display).
     with torch.no_grad():
-        for _ in range(2):  # warm-up
-            model(tensor)
-    times = []
-    with torch.no_grad():
-        for _ in range(10):
-            t0 = time.perf_counter()
-            out = model(tensor)
-            times.append((time.perf_counter() - t0) * 1000)
+        t0 = time.perf_counter()
+        out = model(tensor)
+        latency_ms = (time.perf_counter() - t0) * 1000
     logits = (out.logits if hasattr(out, "logits") else out).squeeze(0).cpu().numpy()
     probs = G._softmax(logits)
     idx = int(probs.argmax())
@@ -107,21 +134,26 @@ def vision(req: VisionReq):
         "confidence": float(probs[idx]),
         "probabilities": _probs_list(probs, G.EUROSAT_CLASSES),
         "attention_png": attention_png,
-        "latency_ms": float(np.median(times)),
+        "latency_ms": float(latency_ms),
         "device": G.DEVICE,
     }
 
 
 @router.post("/text")
-def text(req: TextReq):
+@limiter.limit("20/minute")
+def text(request: Request, req: TextReq):
+    # Validate everything BEFORE loading any model.
     if req.model not in G.TEXT_MODEL_IDS:
-        raise HTTPException(400, f"unknown model {req.model}")
-    if not req.text.strip():
+        raise HTTPException(400, "unknown model")
+    if not req.text or not req.text.strip():
         raise HTTPException(400, "empty text")
+    if len(req.text) > MAX_TEXT_LEN:
+        raise HTTPException(400, "text too long")
     try:
         tokenizer, model, temperature = G._load_text_model(req.model)
-    except Exception as exc:
-        raise HTTPException(502, f"model load failed: {exc}")
+    except Exception:
+        log.exception("text model load failed for %s", req.model)
+        raise HTTPException(502, "model load failed")
 
     enc = tokenizer(req.text, truncation=True, padding=True, max_length=128, return_tensors="pt")
     enc = {k: v.to(G.DEVICE) for k, v in enc.items()}
@@ -140,15 +172,18 @@ def text(req: TextReq):
 
 
 @router.post("/clip-search")
-def clip_search(req: ClipReq):
-    if not req.query.strip():
+@limiter.limit("20/minute")
+def clip_search(request: Request, req: ClipReq):
+    # Validate everything BEFORE loading any model.
+    if not req.query or not req.query.strip():
         raise HTTPException(400, "empty query")
-    k = max(1, min(int(req.k), 12))
+    k = max(1, min(int(req.k), G.MAX_CLIP_K))
     try:
         clip_model, clip_processor = G._load_clip()
         index = G._load_clip_index()
-    except Exception as exc:
-        raise HTTPException(502, f"CLIP load failed: {exc}")
+    except Exception:
+        log.exception("CLIP load failed")
+        raise HTTPException(502, "model load failed")
 
     feats = index["features"].float()
     labels, images = index["labels"], index["images"]

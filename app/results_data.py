@@ -7,6 +7,13 @@ power the frontend's Results dashboard and model info cards.
 
 from __future__ import annotations
 
+import os
+
+# Single source of truth for the HF Hub account. gradio_app.py reads the same
+# HF_HUB_USER env var, so a fork with a different account gets consistent
+# hub_ids in the /models payload and in the live model loaders.
+HUB_USER = os.getenv("HF_HUB_USER", "shiva-1993")
+
 # Vision strategy comparison @ 100% data. latency_ms = single-image PyTorch CPU.
 VISION_STRATEGY = [
     {"model": "ResNet-50", "family": "CNN", "year": 2015, "linear_probe": 77.8, "partial_unfreeze": 98.0, "full_finetune": 98.5, "latency_ms": 589, "onnx_ms": 23},
@@ -42,16 +49,18 @@ CLIP_PROMPTS = [
 
 # Model registry powering the frontend dropdowns + info cards.
 VISION_MODELS = [
-    {"key": "ResNet-50", "hub_id": "shiva-1993/eurosat-resnet50", "family": "CNN", "year": 2015, "params_m": 25.6, "accuracy": 98.5, "latency_ms": 589, "onnx_ms": 23, "has_attention": False},
-    {"key": "EfficientNet-B0", "hub_id": "shiva-1993/eurosat-efficientnet-b0", "family": "CNN", "year": 2019, "params_m": 5.3, "accuracy": 98.0, "latency_ms": 25, "onnx_ms": 6, "has_attention": False},
-    {"key": "ViT-Base", "hub_id": "shiva-1993/eurosat-vit-base", "family": "Transformer", "year": 2020, "params_m": 86.0, "accuracy": 99.0, "latency_ms": 1040, "onnx_ms": 590, "has_attention": True},
-    {"key": "DINOv2-Base", "hub_id": "shiva-1993/eurosat-dinov2-base", "family": "Self-supervised", "year": 2023, "params_m": 86.0, "accuracy": 96.9, "latency_ms": 131, "onnx_ms": 163, "has_attention": True},
+    {"key": "ResNet-50", "hub_id": f"{HUB_USER}/eurosat-resnet50", "family": "CNN", "year": 2015, "params_m": 25.6, "accuracy": 98.5, "latency_ms": 589, "onnx_ms": 23, "has_attention": False},
+    {"key": "EfficientNet-B0", "hub_id": f"{HUB_USER}/eurosat-efficientnet-b0", "family": "CNN", "year": 2019, "params_m": 5.3, "accuracy": 98.0, "latency_ms": 25, "onnx_ms": 6, "has_attention": False},
+    {"key": "ViT-Base", "hub_id": f"{HUB_USER}/eurosat-vit-base", "family": "Transformer", "year": 2020, "params_m": 86.0, "accuracy": 99.0, "latency_ms": 1040, "onnx_ms": 590, "has_attention": True},
+    {"key": "DINOv2-Base", "hub_id": f"{HUB_USER}/eurosat-dinov2-base", "family": "Self-supervised", "year": 2023, "params_m": 86.0, "accuracy": 96.9, "latency_ms": 131, "onnx_ms": 163, "has_attention": True},
 ]
 TEXT_MODELS = [
-    {"key": "RoBERTa", "hub_id": "shiva-1993/emotion-roberta", "params_m": 125, "year": 2019, "accuracy": 92.7, "temperature": 1.169},
-    {"key": "ModernBERT", "hub_id": "shiva-1993/emotion-modernbert", "params_m": 149, "year": 2024, "accuracy": 92.7, "temperature": 1.293},
+    {"key": "RoBERTa", "hub_id": f"{HUB_USER}/emotion-roberta", "params_m": 125, "year": 2019, "accuracy": 92.7, "temperature": 1.169},
+    {"key": "ModernBERT", "hub_id": f"{HUB_USER}/emotion-modernbert", "params_m": 149, "year": 2024, "accuracy": 92.7, "temperature": 1.293},
 ]
 
+# Source of truth for class label ORDER (maps to prediction indices).
+# gradio_app.py imports these; do not reorder.
 EUROSAT_CLASSES = [
     "AnnualCrop", "Forest", "HerbaceousVegetation", "Highway", "Industrial",
     "Pasture", "PermanentCrop", "Residential", "River", "SeaLake",

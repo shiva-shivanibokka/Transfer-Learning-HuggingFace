@@ -35,6 +35,10 @@ export default function Home() {
     let alive = true;
     (async () => {
       try {
+        // Wake the Space with a cheap probe first; ignore its outcome so a
+        // missing/failed /health endpoint never blocks the real bootstrap.
+        await api.health().catch(() => {});
+        if (!alive) return;
         const [m, r] = await Promise.all([api.models(), api.results()]);
         if (!alive) return;
         setModels(m); setResults(r); setStatus("live");
@@ -59,9 +63,9 @@ export default function Home() {
             </h1>
           </div>
           <nav className="flex gap-2 mono text-xs">
-            <a href={GITHUB} target="_blank" className="chip hover:opacity-80">GitHub</a>
-            <a href={HF_MODELS} target="_blank" className="chip hover:opacity-80">🤗 Models</a>
-            <a href={HF_SPACE} target="_blank" className="chip hover:opacity-80">Space</a>
+            <a href={GITHUB} target="_blank" rel="noopener noreferrer" className="chip hover:opacity-80">GitHub</a>
+            <a href={HF_MODELS} target="_blank" rel="noopener noreferrer" className="chip hover:opacity-80">🤗 Models</a>
+            <a href={HF_SPACE} target="_blank" rel="noopener noreferrer" className="chip hover:opacity-80">Space</a>
           </nav>
         </div>
         <p className="text-sm mt-3" style={{ color: "var(--muted)" }}>
@@ -91,7 +95,7 @@ export default function Home() {
         ) : status === "error" ? (
           <div className="panel p-6 text-sm" style={{ color: "var(--muted)" }}>
             Couldn&apos;t reach the inference API. The free Space may be waking from sleep — refresh in ~30s, or{" "}
-            <a href={HF_SPACE} target="_blank" className="underline" style={{ color: "var(--accent)" }}>open the Space</a> to wake it.
+            <a href={HF_SPACE} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "var(--accent)" }}>open the Space</a> to wake it.
           </div>
         ) : status === "connecting" ? (
           <div className="panel p-10 flex justify-center"><Spinner label="connecting to the inference API on Hugging Face…" /></div>

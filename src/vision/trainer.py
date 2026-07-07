@@ -217,8 +217,8 @@ def train_vision_model(
         test_results = trainer.evaluate(test_hf)
         mlflow.log_metrics(
             {
-                "test_accuracy": test_results.get("eval_accuracy", 0),
-                "test_f1_macro": test_results.get("eval_f1_macro", 0),
+                "test_accuracy": test_results["eval_accuracy"],
+                "test_f1_macro": test_results["eval_f1_macro"],
             }
         )
 
@@ -267,8 +267,8 @@ def train_vision_model(
             "trainable_params": param_info["trainable_params"],
             "total_params": param_info["total_params"],
             "trainable_pct": param_info["trainable_pct"],
-            "test_accuracy": test_results.get("eval_accuracy", 0),
-            "test_f1_macro": test_results.get("eval_f1_macro", 0),
+            "test_accuracy": test_results["eval_accuracy"],
+            "test_f1_macro": test_results["eval_f1_macro"],
             "latency_cpu_mean_ms": latency.get("mean_ms"),
             "latency_cpu_p95_ms": latency.get("p95_ms"),
             "onnx_mean_ms": onnx_latency.get("mean_ms") if onnx_latency else None,

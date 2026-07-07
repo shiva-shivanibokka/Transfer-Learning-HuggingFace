@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, type TextModel, type TextResult } from "@/lib/api";
 import { ErrorNote, Metric, Panel, ProbBars, SectionTitle, Spinner } from "@/components/ui";
 
@@ -18,16 +18,28 @@ export default function TextPanel({ models }: { models: TextModel[] }) {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const meta = models.find((m) => m.key === model);
+  const reqIdRef = useRef(0);
+  const ctrlRef = useRef<AbortController | null>(null);
+
+  // Abort any in-flight request when the panel unmounts (e.g. tab switch).
+  useEffect(() => () => ctrlRef.current?.abort(), []);
 
   async function detect() {
     if (!text.trim() || !model) return;
+    const reqId = ++reqIdRef.current;   // monotonic guard against stale responses
+    ctrlRef.current?.abort();
+    const ctrl = new AbortController();
+    ctrlRef.current = ctrl;
     setLoading(true); setErr(null); setRes(null);
     try {
-      setRes(await api.text(text, model));
+      const r = await api.text(text, model, ctrl.signal);
+      if (reqId !== reqIdRef.current) return; // superseded — discard
+      setRes(r);
     } catch (e) {
+      if (reqId !== reqIdRef.current || ctrl.signal.aborted) return;
       setErr(e instanceof Error ? e.message : "request failed");
     } finally {
-      setLoading(false);
+      if (reqId === reqIdRef.current) setLoading(false);
     }
   }
 

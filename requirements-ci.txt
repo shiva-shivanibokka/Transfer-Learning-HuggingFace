@@ -9,4 +9,8 @@ numpy>=1.26.0,<3.0.0
 scipy>=1.13.0,<2.0.0
 scikit-learn>=1.4.0,<2.0.0
 matplotlib>=3.8.0,<4.0.0
-torch>=2.2.0,<3.0.0
+# Torch floor matches the production CVE-2025-32434 gate (unsafe torch.load in
+# <2.6); keep CI and the serving image on the same minimum.
+torch>=2.6.0,<3.0.0
+# Advisory static type-check for the pure src/ layer (CI runs `mypy src || true`).
+mypy>=1.8,<2.0

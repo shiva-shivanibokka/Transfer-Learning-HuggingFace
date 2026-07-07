@@ -121,62 +121,69 @@ def compute_ece(
 class TemperatureScaler(nn.Module):
     """
     Post-hoc calibration via temperature scaling (Guo et al., 2017).
-    Wraps a trained classifier and learns a single scalar temperature T.
-    After calibration: p = softmax(logits / T)
+    Learns a single scalar temperature T and rescales logits: p = softmax(logits / T).
+
+    This is a logits-based API: callers extract logits themselves (HF models
+    return a ``ModelOutput``, not a bare tensor) and pass the tensor in. If a
+    ``ModelOutput`` is passed anyway, its ``.logits`` are used automatically.
     """
 
-    def __init__(self, model: nn.Module):
+    def __init__(self, model: nn.Module = None):
         super().__init__()
+        # ``model`` is retained only for backward compatibility; scaling itself
+        # operates purely on logits tensors.
         self.model = model
         self.temperature = nn.Parameter(torch.ones(1) * 1.5)
 
-    def forward(self, x):
-        logits = self.model(x)
-        return self._scale(logits)
+    @staticmethod
+    def _as_logits(x) -> torch.Tensor:
+        """Accept either a raw logits tensor or an HF ModelOutput."""
+        if isinstance(x, torch.Tensor):
+            return x
+        logits = getattr(x, "logits", None)
+        if logits is not None:
+            return logits
+        raise TypeError(
+            "TemperatureScaler expected a logits Tensor or a ModelOutput with "
+            f".logits, got {type(x)!r}"
+        )
+
+    def forward(self, logits):
+        return self._scale(self._as_logits(logits))
 
     def _scale(self, logits: torch.Tensor) -> torch.Tensor:
         return logits / self.temperature.clamp(min=0.05)
 
-    def fit(
+    def fit_from_logits(
         self,
-        val_loader,
-        device: str = "cpu",
+        logits: torch.Tensor,
+        labels: torch.Tensor,
         lr: float = 0.01,
-        max_epochs: int = 50,
+        max_iter: int = 100,
     ) -> list[float]:
         """
-        Fit temperature on a held-out validation set.
-        Only the temperature parameter is optimised; the model is frozen.
+        Fit the temperature directly on precomputed validation logits + labels
+        using LBFGS (Guo et al.). Only the temperature parameter is optimised.
 
-        Returns list of NLL losses during fitting.
+        Returns the list of NLL losses recorded during optimisation.
         """
-        self.model.eval()
+        logits = self._as_logits(logits).detach().to(torch.float32)
+        labels = labels if isinstance(labels, torch.Tensor) else torch.tensor(labels)
+
         nll_criterion = nn.CrossEntropyLoss()
-        optimizer = torch.optim.LBFGS([self.temperature], lr=lr, max_iter=50)
+        optimizer = torch.optim.LBFGS([self.temperature], lr=lr, max_iter=max_iter)
 
-        # Collect all logits + labels first (avoid recomputing)
-        all_logits, all_labels = [], []
-        with torch.no_grad():
-            for inputs, labels in val_loader:
-                inputs = inputs.to(device)
-                logits = self.model(inputs)
-                all_logits.append(logits.cpu())
-                all_labels.append(labels)
+        losses: list[float] = []
 
-        logits_cat = torch.cat(all_logits)
-        labels_cat = torch.cat(all_labels)
-
-        losses = []
-
-        def eval_fn():
+        def closure():
             optimizer.zero_grad()
-            scaled = self._scale(logits_cat)
-            loss = nll_criterion(scaled, labels_cat)
+            scaled = self._scale(logits)
+            loss = nll_criterion(scaled, labels)
             loss.backward()
             losses.append(loss.item())
             return loss
 
-        optimizer.step(eval_fn)
+        optimizer.step(closure)
         return losses
 
     @property

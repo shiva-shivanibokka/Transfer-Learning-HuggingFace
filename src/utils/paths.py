@@ -41,4 +41,6 @@ def text_temperature_path(model_key: str) -> Path:
 
 
 def clip_index_path() -> Path:
-    return RESULTS_ROOT / "clip" / "retrieval_index.pt"
+    # safetensors (not .pt): the index is loaded at serve time, so it must not
+    # be an arbitrary-code pickle. All fields are plain tensors.
+    return RESULTS_ROOT / "clip" / "retrieval_index.safetensors"
