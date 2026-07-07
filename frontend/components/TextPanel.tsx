@@ -35,7 +35,8 @@ export default function TextPanel({ models }: { models: TextModel[] }) {
     <div className="grid lg:grid-cols-2 gap-5">
       <Panel>
         <SectionTitle kicker="dair-ai/emotion · 6 classes" title="Emotion detector"
-          sub="Fine-tuned encoder + temperature-scaled calibration." />
+          sub="Fine-tuned encoder + temperature-scaled calibration."
+          help="Classifies a sentence into one of 6 emotions (sadness, joy, love, anger, fear, surprise) using a fine-tuned RoBERTa or ModernBERT encoder served from the Hub." />
 
         <div className="flex flex-wrap gap-2 mb-3">
           {models.map((m) => (
@@ -66,7 +67,8 @@ export default function TextPanel({ models }: { models: TextModel[] }) {
       </Panel>
 
       <Panel>
-        <SectionTitle kicker={meta ? `${meta.params_m}M params · ${meta.year}` : ""} title="Prediction + calibration" />
+        <SectionTitle kicker={meta ? `${meta.params_m}M params · ${meta.year}` : ""} title="Prediction + calibration"
+          help="The predicted emotion, plus raw vs. temperature-scaled (calibrated) confidence side by side. Calibration rescales the logits by a fitted temperature T so the confidence better reflects true accuracy." />
         {!res && !loading && !err && (
           <div className="text-sm py-16 text-center" style={{ color: "var(--faint)" }}>
             Raw vs. temperature-scaled confidence will appear side by side.

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import Image from "next/image";
 import { api, type VisionModel, type VisionResult } from "@/lib/api";
 import { ErrorNote, Metric, Panel, ProbBars, SectionTitle, Spinner } from "@/components/ui";
 
@@ -55,7 +54,8 @@ export default function VisionPanel({ models }: { models: VisionModel[] }) {
       {/* Input */}
       <Panel>
         <SectionTitle kicker="EuroSAT · 10 classes" title="Land-use classifier"
-          sub="Upload a satellite patch (or pick a sample), choose a backbone, classify." />
+          sub="Upload a satellite patch (or pick a sample), choose a backbone, classify."
+          help="Classifies a Sentinel-2 satellite patch into one of 10 EuroSAT land-use classes. Pick a backbone (CNNs vs. transformers) to compare; each is fine-tuned and served from the Hugging Face Hub." />
 
         <div className="flex flex-wrap gap-2 mb-4">
           {models.map((m) => (
@@ -91,7 +91,8 @@ export default function VisionPanel({ models }: { models: VisionModel[] }) {
               <button key={s} onClick={() => loadSample(s)}
                 className="aspect-square rounded-md overflow-hidden border hover:opacity-80 transition"
                 style={{ borderColor: "var(--border)" }} title={s}>
-                <Image src={`/samples/${s}.png`} alt={s} width={64} height={64} className="w-full h-full object-cover" />
+                {/* plain img: samples are tiny + static; avoids the next/image optimizer round-trip */}
+                <img src={`/samples/${s}.png`} alt={s} className="w-full h-full object-cover" />
               </button>
             ))}
           </div>
@@ -105,7 +106,8 @@ export default function VisionPanel({ models }: { models: VisionModel[] }) {
 
       {/* Output */}
       <Panel>
-        <SectionTitle kicker={meta ? `${meta.family} · ${meta.year} · ${meta.params_m}M params` : ""} title="Prediction" />
+        <SectionTitle kicker={meta ? `${meta.family} · ${meta.year} · ${meta.params_m}M params` : ""} title="Prediction"
+          help="Predicted class and confidence, the full 10-class probability distribution, single-image inference latency, and — for ViT/DINOv2 — an attention-rollout heatmap showing which image regions the model focused on." />
         {!res && !loading && !err && (
           <div className="text-sm py-16 text-center" style={{ color: "var(--faint)" }}>
             Results appear here. First call after the Space sleeps downloads the model — give it a few seconds.

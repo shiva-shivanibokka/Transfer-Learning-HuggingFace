@@ -6,12 +6,24 @@ export function Panel({ children, className = "" }: { children: React.ReactNode;
   return <div className={`panel p-5 ${className}`}>{children}</div>;
 }
 
-export function SectionTitle({ kicker, title, sub }: { kicker?: string; title: string; sub?: string }) {
+export function Help({ text }: { text: string }) {
   return (
-    <div className="mb-4">
-      {kicker && <div className="mono text-[11px] tracking-widest uppercase" style={{ color: "var(--accent)" }}>{kicker}</div>}
-      <h2 className="text-lg font-semibold mt-1">{title}</h2>
-      {sub && <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>{sub}</p>}
+    <span className="help" aria-label={text} role="img">
+      <span className="dot mono">?</span>
+      <span className="tip">{text}</span>
+    </span>
+  );
+}
+
+export function SectionTitle({ kicker, title, sub, help }: { kicker?: string; title: string; sub?: string; help?: string }) {
+  return (
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div>
+        {kicker && <div className="mono text-[11px] tracking-widest uppercase" style={{ color: "var(--accent)" }}>{kicker}</div>}
+        <h2 className="text-lg font-semibold mt-1">{title}</h2>
+        {sub && <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>{sub}</p>}
+      </div>
+      {help && <div className="shrink-0 mt-0.5"><Help text={help} /></div>}
     </div>
   );
 }

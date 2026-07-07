@@ -2,7 +2,7 @@
 
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { ResultsPayload } from "@/lib/api";
-import { Panel, SectionTitle } from "@/components/ui";
+import { Help, Panel, SectionTitle } from "@/components/ui";
 
 const SERIES = [
   { key: "ResNet-50", color: "#22d3ee" },
@@ -25,19 +25,26 @@ export default function ResultsPanel({ data }: { data: ResultsPayload }) {
   return (
     <div className="space-y-5">
       {/* Findings */}
-      <div className="grid md:grid-cols-3 gap-3">
-        {data.findings.map((f, i) => (
-          <Panel key={i} className="!p-4">
-            <div className="mono text-2xl" style={{ color: ["var(--accent)", "var(--accent2)", "#a78bfa"][i] }}>0{i + 1}</div>
-            <p className="text-sm mt-1.5" style={{ color: "var(--muted)" }}>{f}</p>
-          </Panel>
-        ))}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="mono text-[11px] tracking-widest uppercase" style={{ color: "var(--accent)" }}>Key findings</div>
+          <Help text="The three headline takeaways from the experiment grid — the answers to the project's research questions, backed by the tables below." />
+        </div>
+        <div className="grid md:grid-cols-3 gap-3">
+          {data.findings.map((f, i) => (
+            <Panel key={i} className="!p-4">
+              <div className="mono text-2xl" style={{ color: ["var(--accent)", "var(--accent2)", "#a78bfa"][i] }}>0{i + 1}</div>
+              <p className="text-sm mt-1.5" style={{ color: "var(--muted)" }}>{f}</p>
+            </Panel>
+          ))}
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-5">
         {/* Strategy comparison */}
         <Panel>
-          <SectionTitle kicker="EuroSAT · 100% data" title="Fine-tuning strategy comparison" />
+          <SectionTitle kicker="EuroSAT · 100% data" title="Fine-tuning strategy comparison"
+            help="Test accuracy for each backbone under three transfer strategies: linear probe (backbone frozen, train only the head), partial unfreeze (last blocks), and full fine-tune. CPU ms is single-image latency." />
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -67,13 +74,16 @@ export default function ResultsPanel({ data }: { data: ResultsPayload }) {
 
         {/* Data efficiency chart */}
         <Panel>
-          <SectionTitle kicker="full fine-tune" title="Data efficiency" />
-          <div style={{ height: 240 }}>
+          <SectionTitle kicker="full fine-tune" title="Data efficiency"
+            help="Test accuracy as the labeled training set shrinks to 10 / 5 / 1%, using full fine-tuning. Shows which backbones stay accurate with little data." />
+          <div style={{ height: 260 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={de} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+              <LineChart data={de} margin={{ top: 8, right: 14, bottom: 20, left: 8 }}>
                 <CartesianGrid stroke="#23262d" vertical={false} />
-                <XAxis dataKey="pct" tick={{ fill: "#8a909c", fontSize: 11 }} stroke="#23262d" />
-                <YAxis domain={[20, 100]} tick={{ fill: "#8a909c", fontSize: 11 }} stroke="#23262d" />
+                <XAxis dataKey="pct" tick={{ fill: "#8a909c", fontSize: 11 }} stroke="#23262d"
+                  label={{ value: "% of training data", position: "insideBottom", offset: -10, fill: "#8a909c", fontSize: 11 }} />
+                <YAxis domain={[20, 100]} tick={{ fill: "#8a909c", fontSize: 11 }} stroke="#23262d"
+                  label={{ value: "Test accuracy (%)", angle: -90, position: "insideLeft", offset: 18, fill: "#8a909c", fontSize: 11, style: { textAnchor: "middle" } }} />
                 <Tooltip contentStyle={{ background: "#16181d", border: "1px solid #2f333c", borderRadius: 8, fontSize: 12 }}
                   labelStyle={{ color: "#e6e8ec" }} />
                 {SERIES.map((s) => (
@@ -94,7 +104,8 @@ export default function ResultsPanel({ data }: { data: ResultsPayload }) {
 
         {/* Text calibration */}
         <Panel>
-          <SectionTitle kicker="dair-ai/emotion" title="Text models + calibration" />
+          <SectionTitle kicker="dair-ai/emotion" title="Text models + calibration"
+            help="Emotion-classification accuracy and F1, plus Expected Calibration Error (ECE) before and after temperature scaling. Lower ECE = the model's confidence better matches its accuracy. T is the fitted temperature." />
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -126,7 +137,8 @@ export default function ResultsPanel({ data }: { data: ResultsPayload }) {
 
         {/* CLIP prompts */}
         <Panel>
-          <SectionTitle kicker="CLIP zero-shot" title="Prompt sensitivity" />
+          <SectionTitle kicker="CLIP zero-shot" title="Prompt sensitivity"
+            help="CLIP classifies EuroSAT with no training by comparing images to text prompts. Accuracy varies a lot with prompt wording; averaging embeddings across all five templates (Ensemble) beats any single one." />
           <div className="space-y-1.5">
             {data.clip_prompts.map((p) => {
               const w = (p.accuracy / 55) * 100;

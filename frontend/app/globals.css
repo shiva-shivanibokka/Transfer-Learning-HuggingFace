@@ -89,6 +89,28 @@ body {
 @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.35} }
 .live-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
 
+/* hover "?" help tooltip */
+.help { position: relative; display: inline-flex; }
+.help > .dot {
+  width: 17px; height: 17px; border-radius: 999px;
+  border: 1px solid var(--border-hi); color: var(--muted);
+  font-size: 10px; line-height: 1; display: inline-flex;
+  align-items: center; justify-content: center; cursor: help;
+  transition: color .15s, border-color .15s;
+}
+.help:hover > .dot { color: var(--accent); border-color: var(--accent); }
+.help > .tip {
+  position: absolute; top: 135%; right: 0; z-index: 40;
+  width: max-content; max-width: 250px;
+  background: var(--panel-2); border: 1px solid var(--border-hi);
+  border-radius: 9px; padding: 8px 11px;
+  font-size: 11px; line-height: 1.45; color: var(--fg); text-align: left;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+  opacity: 0; transform: translateY(-3px); pointer-events: none;
+  transition: opacity .14s ease, transform .14s ease;
+}
+.help:hover > .tip { opacity: 1; transform: translateY(0); }
+
 @keyframes shimmer { 100% { transform: translateX(100%); } }
 .skeleton { position: relative; overflow: hidden; background: var(--panel-2); }
 .skeleton::after {

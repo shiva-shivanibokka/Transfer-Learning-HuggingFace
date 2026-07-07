@@ -32,7 +32,8 @@ export default function ClipPanel() {
     <Panel>
       <SectionTitle kicker="CLIP ViT-B/32 · 1000 EuroSAT images"
         title="Text → image retrieval"
-        sub="Zero-shot search over a cached embedding index using natural language." />
+        sub="Zero-shot search over a cached embedding index using natural language."
+        help="Type a description; CLIP encodes it into the same embedding space as 1000 pre-encoded EuroSAT images, then returns the closest matches by cosine similarity. No training or labels involved." />
 
       <div className="flex gap-2">
         <input value={query} onChange={(e) => setQuery(e.target.value)}
