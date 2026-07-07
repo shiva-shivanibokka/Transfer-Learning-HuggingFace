@@ -1,0 +1,13 @@
+{
+  "model_key": "resnet50",
+  "strategy": "full_finetune",
+  "data_fraction": 0.05,
+  "trainable_params": 23528522,
+  "total_params": 23528522,
+  "trainable_pct": 100.0,
+  "test_accuracy": 0.8742592592592593,
+  "test_f1_macro": 0.8677619353644417,
+  "latency_cpu_mean_ms": 50.15098599018529,
+  "latency_cpu_p95_ms": 54.57709497422911,
+  "onnx_mean_ms": 13.510391992749646
+}

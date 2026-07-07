@@ -1,0 +1,13 @@
+{
+  "model_key": "efficientnet_b0",
+  "strategy": "full_finetune",
+  "data_fraction": 0.1,
+  "trainable_params": 4020358,
+  "total_params": 4020358,
+  "trainable_pct": 100.0,
+  "test_accuracy": 0.9496296296296296,
+  "test_f1_macro": 0.9483073561766021,
+  "latency_cpu_mean_ms": 34.71410000231117,
+  "latency_cpu_p95_ms": 38.99500004481524,
+  "onnx_mean_ms": 6.022574995877221
+}

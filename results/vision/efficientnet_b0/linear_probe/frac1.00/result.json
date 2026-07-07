@@ -1,0 +1,13 @@
+{
+  "model_key": "efficientnet_b0",
+  "strategy": "linear_probe",
+  "data_fraction": 1.0,
+  "trainable_params": 12810,
+  "total_params": 4020358,
+  "trainable_pct": 0.32,
+  "test_accuracy": 0.7948148148148149,
+  "test_f1_macro": 0.7809052859018398,
+  "latency_cpu_mean_ms": 256.09645599732175,
+  "latency_cpu_p95_ms": 408.01695002010086,
+  "onnx_mean_ms": 180.34733400912955
+}

@@ -1,0 +1,13 @@
+{
+  "model_key": "vit_base",
+  "strategy": "partial_unfreeze",
+  "data_fraction": 1.0,
+  "trainable_params": 14183434,
+  "total_params": 85806346,
+  "trainable_pct": 16.53,
+  "test_accuracy": 0.9614814814814815,
+  "test_f1_macro": 0.9609296597632891,
+  "latency_cpu_mean_ms": 355.7668799976818,
+  "latency_cpu_p95_ms": 382.5936499692034,
+  "onnx_mean_ms": 66.19151300750673
+}

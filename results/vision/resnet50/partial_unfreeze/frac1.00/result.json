@@ -1,0 +1,13 @@
+{
+  "model_key": "resnet50",
+  "strategy": "partial_unfreeze",
+  "data_fraction": 1.0,
+  "trainable_params": 22083594,
+  "total_params": 23528522,
+  "trainable_pct": 93.86,
+  "test_accuracy": 0.98,
+  "test_f1_macro": 0.9794576157764785,
+  "latency_cpu_mean_ms": 272.2289130068384,
+  "latency_cpu_p95_ms": 280.1109350286424,
+  "onnx_mean_ms": 25.706364989746362
+}

@@ -1,0 +1,13 @@
+{
+  "model_key": "dinov2_base",
+  "strategy": "partial_unfreeze",
+  "data_fraction": 1.0,
+  "trainable_params": 14194186,
+  "total_params": 86595850,
+  "trainable_pct": 16.39,
+  "test_accuracy": 0.9781481481481481,
+  "test_f1_macro": 0.9775194053169474,
+  "latency_cpu_mean_ms": 1400.1211059943307,
+  "latency_cpu_p95_ms": 1526.1606949963607,
+  "onnx_mean_ms": 189.29425799869932
+}

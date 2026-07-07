@@ -1,0 +1,13 @@
+{
+  "model_key": "dinov2_base",
+  "strategy": "linear_probe",
+  "data_fraction": 1.0,
+  "trainable_params": 15370,
+  "total_params": 86595850,
+  "trainable_pct": 0.02,
+  "test_accuracy": 0.9537037037037037,
+  "test_f1_macro": 0.9522519028987999,
+  "latency_cpu_mean_ms": 619.759867999237,
+  "latency_cpu_p95_ms": 1261.0307149996515,
+  "onnx_mean_ms": 281.56137699377723
+}

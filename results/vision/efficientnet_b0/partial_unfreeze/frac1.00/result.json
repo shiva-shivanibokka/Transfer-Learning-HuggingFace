@@ -1,0 +1,13 @@
+{
+  "model_key": "efficientnet_b0",
+  "strategy": "partial_unfreeze",
+  "data_fraction": 1.0,
+  "trainable_params": 1317994,
+  "total_params": 4020358,
+  "trainable_pct": 32.78,
+  "test_accuracy": 0.929074074074074,
+  "test_f1_macro": 0.9301663377190768,
+  "latency_cpu_mean_ms": 223.09119199751876,
+  "latency_cpu_p95_ms": 328.9668799901846,
+  "onnx_mean_ms": 251.58877000794746
+}

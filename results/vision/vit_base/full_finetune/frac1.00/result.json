@@ -1,0 +1,13 @@
+{
+  "model_key": "vit_base",
+  "strategy": "full_finetune",
+  "data_fraction": 1.0,
+  "trainable_params": 85806346,
+  "total_params": 85806346,
+  "trainable_pct": 100.0,
+  "test_accuracy": 0.99,
+  "test_f1_macro": 0.9899090895588749,
+  "latency_cpu_mean_ms": 1040.4335180053022,
+  "latency_cpu_p95_ms": 1165.4658150102478,
+  "onnx_mean_ms": 590.3393019957002
+}

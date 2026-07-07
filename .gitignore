@@ -17,6 +17,12 @@ results/**/checkpoint-*/
 results/**/*.onnx
 results/**/*.bin
 results/**/*.safetensors
+# Trained weights (best_model.pt, retrieval_index.pt) are too large for GitHub
+# LFS (1GB free quota); they are served from the Hugging Face Space/Hub instead.
+# The small JSON/CSV result files ARE committed so the README tables reproduce
+# from tracked data.
+results/**/*.pt
+results/**/*.pth
 *.db
 *.log
 .ipynb_checkpoints/

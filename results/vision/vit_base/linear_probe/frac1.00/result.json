@@ -1,0 +1,13 @@
+{
+  "model_key": "vit_base",
+  "strategy": "linear_probe",
+  "data_fraction": 1.0,
+  "trainable_params": 7690,
+  "total_params": 85806346,
+  "trainable_pct": 0.01,
+  "test_accuracy": 0.8885185185185185,
+  "test_f1_macro": 0.8854742550753688,
+  "latency_cpu_mean_ms": 399.3102539994288,
+  "latency_cpu_p95_ms": 457.19052000786144,
+  "onnx_mean_ms": 71.15523100597784
+}
